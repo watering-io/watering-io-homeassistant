@@ -23,7 +23,7 @@ class WateringIoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Create the options flow."""
-        return WateringIoOptionsFlow(config_entry)
+        return WateringIoOptionsFlow()
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step."""
@@ -46,9 +46,6 @@ class WateringIoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class WateringIoOptionsFlow(config_entries.OptionsFlow):
     """Handle Watering.IO options."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
         """Manage integration options."""
