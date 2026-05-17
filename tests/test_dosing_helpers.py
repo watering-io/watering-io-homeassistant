@@ -48,6 +48,11 @@ class DosingHelperTests(unittest.TestCase):
     def test_extract_sensor_id_accepts_new_payload_key(self) -> None:
         self.assertEqual(helpers.extract_sensor_id({"sensor_modbus_id": 1}), "1")
 
+    def test_sensor_temperature_payload_is_numeric_degrees_celsius(self) -> None:
+        payload = {"temperature": "21"}
+
+        self.assertEqual(helpers.coerce_numeric(payload["temperature"]), 21)
+
     def test_extract_planter_unique_id_from_schema(self) -> None:
         self.assertEqual(
             helpers.extract_planter_unique_id({"unique_id": "watering-001122334455_planter_3"}),

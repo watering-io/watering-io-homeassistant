@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -42,13 +42,14 @@ PLANTER_FIELDS = [
 SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missedScans"]
 PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
 SIGNAL_STRENGTH_FIELDS = {"wifiRssi"}
+TEMPERATURE_FIELDS = {"temperature"}
 DURATION_FIELDS = {"total_dosing_s", "next_dose_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 
 
 def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | None = None):
     value = data.get(field)
-    if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS:
+    if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS or field in TEMPERATURE_FIELDS:
         return coerce_numeric(value)
     if field == "total_dosing_s":
         return coerce_numeric(data.get("total_dosing_s"))
@@ -67,6 +68,10 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
     elif field in SIGNAL_STRENGTH_FIELDS:
         entity._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
         entity._attr_native_unit_of_measurement = "dBm"
+        entity._attr_state_class = SensorStateClass.MEASUREMENT
+    elif field in TEMPERATURE_FIELDS:
+        entity._attr_device_class = SensorDeviceClass.TEMPERATURE
+        entity._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         entity._attr_state_class = SensorStateClass.MEASUREMENT
     elif field in DURATION_FIELDS:
         duration_device_class = getattr(SensorDeviceClass, "DURATION", None)
