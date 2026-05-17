@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import importlib.util
 from pathlib import Path
 import unittest
@@ -24,63 +23,59 @@ helpers = load_module("watering_io_helpers", "custom_components/watering_io/help
 class DosingHelperTests(unittest.TestCase):
     def test_new_planter_status_payload_dosing_fields(self) -> None:
         payload = {
-            "device_id": "esp32-001",
+            "device_id": "watering-001122334455",
             "planter_id": 3,
-            "last_dosing_ms": 18500,
-            "total_dosing_ms": 842000,
-            "last_dosing_unix": 1778879536,
-            "last_event_id": 1234,
+            "moisture": 42,
+            "target_moisture": 45.0,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "watering": False,
+            "online": True,
+            "next_dose_in_s": -1,
+            "total_dosing_s": 842,
         }
 
         self.assertEqual(helpers.extract_planter_id(payload), "3")
-        self.assertEqual(helpers.milliseconds_to_seconds(payload["total_dosing_ms"]), 842)
-        self.assertEqual(helpers.milliseconds_to_seconds(payload["last_dosing_ms"]), 18.5)
+        self.assertEqual(helpers.extract_sensor_id(payload), "1")
         self.assertEqual(
-            helpers.unix_to_utc_datetime(payload["last_dosing_unix"]),
-            datetime.fromtimestamp(1778879536, tz=timezone.utc),
-        )
-        self.assertEqual(
-            helpers.total_water_ml(payload["total_dosing_ms"], const.DEFAULT_PUMP_1_FLOW_ML_PER_S),
+            helpers.total_water_ml(payload["total_dosing_s"], const.DEFAULT_PUMP_1_FLOW_ML_PER_S),
             842,
         )
 
     def test_extract_planter_id_accepts_new_payload_key(self) -> None:
         self.assertEqual(helpers.extract_planter_id({"planter_id": 3}), "3")
 
-    def test_total_dosing_ms_converts_to_seconds(self) -> None:
-        payload = {"total_dosing_ms": 842000}
+    def test_extract_sensor_id_accepts_new_payload_key(self) -> None:
+        self.assertEqual(helpers.extract_sensor_id({"sensor_modbus_id": 1}), "1")
 
-        self.assertEqual(helpers.milliseconds_to_seconds(payload["total_dosing_ms"]), 842)
-
-    def test_last_dosing_ms_converts_to_seconds(self) -> None:
-        payload = {"last_dosing_ms": "18500"}
-
-        self.assertEqual(helpers.milliseconds_to_seconds(payload["last_dosing_ms"]), 18.5)
-
-    def test_last_dosing_unix_converts_to_utc_datetime(self) -> None:
-        payload = {"last_dosing_unix": 1778879536}
-
+    def test_extract_planter_unique_id_from_schema(self) -> None:
         self.assertEqual(
-            helpers.unix_to_utc_datetime(payload["last_dosing_unix"]),
-            datetime.fromtimestamp(1778879536, tz=timezone.utc),
+            helpers.extract_planter_unique_id({"unique_id": "watering-001122334455_planter_3"}),
+            "watering-001122334455_planter_3",
         )
 
     def test_total_water_uses_default_pump_flow(self) -> None:
-        payload = {"total_dosing_ms": 842000}
+        payload = {"total_dosing_s": 842}
 
         self.assertEqual(
-            helpers.total_water_ml(payload["total_dosing_ms"], const.DEFAULT_PUMP_1_FLOW_ML_PER_S),
+            helpers.total_water_ml(payload["total_dosing_s"], const.DEFAULT_PUMP_1_FLOW_ML_PER_S),
+            842,
+        )
+
+    def test_total_water_uses_string_seconds(self) -> None:
+        payload = {"total_dosing_s": "842"}
+
+        self.assertEqual(
+            helpers.total_water_ml(payload["total_dosing_s"], const.DEFAULT_PUMP_1_FLOW_ML_PER_S),
             842,
         )
 
     def test_total_water_uses_configured_pump_flow(self) -> None:
-        payload = {"total_dosing_ms": 842000}
+        payload = {"total_dosing_s": 842}
 
-        self.assertEqual(helpers.total_water_ml(payload["total_dosing_ms"], 1.5), 1263)
+        self.assertEqual(helpers.total_water_ml(payload["total_dosing_s"], 1.5), 1263)
 
     def test_invalid_values_return_none(self) -> None:
-        self.assertIsNone(helpers.milliseconds_to_seconds("not-a-number"))
-        self.assertIsNone(helpers.unix_to_utc_datetime("not-a-timestamp"))
         self.assertIsNone(helpers.total_water_ml("not-a-number", 1.0))
 
 

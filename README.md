@@ -28,7 +28,7 @@ Entities are created for:
 - System sensors: uptime, Wi-Fi RSSI, bus current, firmware/build diagnostics
 - Pump binary sensors
 - Per-planter sensors and binary sensors
-- Per-planter dosing sensors for total dosing time, last dosing time, last dosing timestamp, last event ID, and calculated total water
+- Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture/temperature/online diagnostics
 - Sensor rescan button publishing `{}` to `<prefix>/command/sensors/rescan`
 
@@ -42,13 +42,10 @@ For each planter, the integration reads retained dosing values from:
 
 Supported dosing fields:
 
-- `total_dosing_ms` -> `sensor.planter_<id>_total_dosing_seconds`
-- `last_dosing_ms` -> `sensor.planter_<id>_last_dosing_seconds`
-- `last_dosing_unix` -> `sensor.planter_<id>_last_dosing_time`
-- `last_event_id` -> `sensor.planter_<id>_last_event_id`
-- `total_dosing_ms` plus pump calibration -> `sensor.planter_<id>_total_water_ml`
+- `total_dosing_s` -> `sensor.planter_<id>_total_dosing_s`
+- `total_dosing_s` plus pump calibration -> `sensor.planter_<id>_total_water_ml`
 
-`total_dosing_seconds` and `total_water_ml` are exposed as `total_increasing` sensors so they can be used with Home Assistant `utility_meter` helpers for daily, monthly, or seasonal totals.
+`total_dosing_s` and `total_water_ml` are exposed as `total_increasing` sensors so they can be used with Home Assistant `utility_meter` helpers for daily, monthly, or seasonal totals.
 
 The pump flow calibration is available in the integration options:
 
@@ -60,6 +57,8 @@ The default is `1.0 mL/s`.
 
 Watering event messages from `<prefix>/planter/<planter_id>/event/watering` are logged at debug level only. They are not used for aggregation, so reconnects and retained status messages remain the source of truth for statistics.
 
+Current firmware no longer publishes legacy dosing fields such as `total_dosing_ms`, `duration_ms`, `last_dosing_ms`, `last_dosing_unix`, or `last_event_id`. If those old entities remain in Home Assistant after updating, remove the stale entity registry entries once.
+
 ## Dashboard Card
 
 The integration bundles a Lovelace custom card for a single planter:
@@ -69,10 +68,9 @@ type: custom:watering-io-planter-card
 name: Tomatoes
 crop: tomato
 moisture_entity: sensor.planter_1_moisture
-target_entity: sensor.planter_1_target
+target_entity: sensor.planter_1_target_moisture
 online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
-state_entity: sensor.planter_1_state
 ```
 
 Available crop presets:
@@ -83,6 +81,7 @@ Available crop presets:
 - `tomato_yellow`
 - `tomato_beefsteak`
 - `tomato_roma`
+- `tomato_black`
 - `basil`
 - `lettuce`
 - `chili`
@@ -92,14 +91,21 @@ Available crop presets:
 - `pepper_mixed_chili`
 - `strawberry`
 - `cucumber`
+- `eggplant`
+- `zucchini`
 - `herbs`
+- `parsley`
+- `mint`
+- `arugula`
+- `spinach`
+- `radish`
 
 ### Add The Card Resource
 
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.8
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.9
 Resource type: JavaScript module
 ```
 

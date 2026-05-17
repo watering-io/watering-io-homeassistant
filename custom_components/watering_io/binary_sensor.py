@@ -31,7 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
-            if not planter_id or planter_id in added_planters:
+            if not planter_id or planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
             new_entities.extend(
@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             new_entities.append(SensorOnlineBinarySensor(coordinator, sensor_id))
 
         for planter_id in coordinator.state.planter_status:
-            if planter_id in added_planters:
+            if planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
             new_entities.extend(
@@ -89,7 +89,7 @@ class PlanterBinarySensor(WateringPlanterEntity, BinarySensorEntity):
         super().__init__(coordinator, planter_id)
         self.field = field
         self._attr_name = f"Planter {planter_id} {field}"
-        self._attr_unique_id = f"{coordinator.device_id}_planter_{planter_id}_{field}"
+        self._attr_unique_id = f"{self.planter_unique_id}_{field}"
 
     @property
     def is_on(self):

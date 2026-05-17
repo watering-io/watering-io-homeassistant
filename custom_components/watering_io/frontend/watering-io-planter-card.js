@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.8";
+const CARD_VERSION = "0.1.9";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -8,6 +8,7 @@ const CROPS = [
   { value: "tomato_yellow", label: "Yellow tomato" },
   { value: "tomato_beefsteak", label: "Beefsteak tomato" },
   { value: "tomato_roma", label: "Roma tomato" },
+  { value: "tomato_black", label: "Dark heirloom tomato" },
   { value: "basil", label: "Basil" },
   { value: "lettuce", label: "Lettuce" },
   { value: "chili", label: "Chili" },
@@ -17,7 +18,14 @@ const CROPS = [
   { value: "pepper_mixed_chili", label: "Mixed chili peppers" },
   { value: "strawberry", label: "Strawberry" },
   { value: "cucumber", label: "Cucumber" },
+  { value: "eggplant", label: "Eggplant" },
+  { value: "zucchini", label: "Zucchini" },
   { value: "herbs", label: "Herbs" },
+  { value: "parsley", label: "Parsley" },
+  { value: "mint", label: "Mint" },
+  { value: "arugula", label: "Arugula" },
+  { value: "spinach", label: "Spinach" },
+  { value: "radish", label: "Radish" },
 ];
 const CROP_VALUES = new Set(CROPS.map((crop) => crop.value));
 const FORM_LABELS = {

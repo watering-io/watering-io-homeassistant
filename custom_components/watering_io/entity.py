@@ -43,7 +43,8 @@ class WateringPlanterEntity(WateringEntity):
     def __init__(self, coordinator: WateringIoCoordinator, planter_id: str) -> None:
         super().__init__(coordinator)
         self.planter_id = planter_id
+        self.planter_unique_id = coordinator.planter_unique_id(planter_id) or f"unknown_planter_{planter_id}"
 
     @property
     def device_info(self) -> DeviceInfo:
-        return self.coordinator.planter_device_info(self.planter_id)
+        return self.coordinator.planter_device_info(self.planter_id, self.planter_unique_id)

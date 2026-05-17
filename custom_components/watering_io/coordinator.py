@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import CONF_PUMP_1_FLOW_ML_PER_S, DEFAULT_PUMP_1_FLOW_ML_PER_S, DOMAIN
-from .helpers import extract_planter_id, extract_sensor_id
+from .helpers import extract_planter_id, extract_planter_unique_id, extract_sensor_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class WateringState:
     availability_online: bool = False
     device_info: dict[str, Any] = field(default_factory=dict)
     schema: dict[str, Any] = field(default_factory=dict)
+    device_status: dict[str, Any] = field(default_factory=dict)
     system_status: dict[str, Any] = field(default_factory=dict)
     pumps_status: dict[str, Any] = field(default_factory=dict)
     planter_status: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -54,7 +55,26 @@ class WateringIoCoordinator:
 
     @property
     def device_id(self) -> str:
-        return self.state.device_info.get("deviceId", "unknown")
+        for key in ("device_id", "deviceId"):
+            value = self.state.device_info.get(key)
+            if value:
+                return str(value)
+
+        value = self.state.device_status.get("device_id")
+        if value:
+            return str(value)
+
+        for planter_status in self.state.planter_status.values():
+            value = planter_status.get("device_id")
+            if value:
+                return str(value)
+
+        for planter in self.state.schema.get("entities", {}).get("planters", []):
+            unique_id = extract_planter_unique_id(planter)
+            if unique_id and "_planter_" in unique_id:
+                return unique_id.rsplit("_planter_", 1)[0]
+
+        return "unknown"
 
     @property
     def device_available(self) -> bool:
@@ -81,10 +101,28 @@ class WateringIoCoordinator:
             sw_version=self.state.device_info.get("firmwareVersion"),
         )
 
-    def planter_device_info(self, planter_id: str) -> DeviceInfo:
+    def planter_unique_id(self, planter_id: str) -> str | None:
+        for planter in self.state.schema.get("entities", {}).get("planters", []):
+            if extract_planter_id(planter) == planter_id:
+                unique_id = extract_planter_unique_id(planter)
+                if unique_id:
+                    return unique_id
+
+        planter_status = self.state.planter_status.get(planter_id, {})
+        status_device_id = planter_status.get("device_id")
+        if status_device_id:
+            return f"{status_device_id}_planter_{planter_id}"
+
+        if self.device_id != "unknown":
+            return f"{self.device_id}_planter_{planter_id}"
+
+        return None
+
+    def planter_device_info(self, planter_id: str, planter_unique_id: str | None = None) -> DeviceInfo:
+        planter_identifier = planter_unique_id or self.planter_unique_id(planter_id)
         hub_identifier = (DOMAIN, self.device_id)
         return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.device_id}_planter_{planter_id}")},
+            identifiers={(DOMAIN, planter_identifier or f"unknown_planter_{planter_id}")},
             name=f"Planter {planter_id}",
             manufacturer="Watering.IO",
             model="Watering.IO Planter",
@@ -113,10 +151,12 @@ class WateringIoCoordinator:
             (f"{self.prefix}/integration/schema", self._handle_schema),
             # Fallback subscriptions so we can discover planter/sensor entities even
             # before schema is received or when schema entity arrays are incomplete.
+            (f"{self.prefix}/device/+/status", self._handle_status),
             (f"{self.prefix}/system/status", self._handle_status),
             (f"{self.prefix}/pumps/status", self._handle_status),
             (f"{self.prefix}/planter/+/status", self._handle_status),
             (f"{self.prefix}/planter/+/event/watering", self._handle_watering_event),
+            (f"{self.prefix}/sensors/status", self._handle_status),
             (f"{self.prefix}/sensors/+/status", self._handle_status),
         ):
             unsub = await mqtt.async_subscribe(self.hass, topic, cb, qos=0)
@@ -124,11 +164,16 @@ class WateringIoCoordinator:
 
     async def _subscribe_schema_topics(self) -> None:
         topics = self.state.schema.get("topics", {})
-        for key in ("systemStatus", "pumpsStatus"):
+        for key in ("deviceStatus", "systemStatus", "pumpsStatus"):
             topic = topics.get(key)
             if topic:
                 unsub = await mqtt.async_subscribe(self.hass, topic, self._handle_status, qos=0)
                 self._unsubs.append(unsub)
+
+        topic = topics.get("sensorsStatus")
+        if topic:
+            unsub = await mqtt.async_subscribe(self.hass, topic, self._handle_status, qos=0)
+            self._unsubs.append(unsub)
 
         # Always subscribe to wildcard status topics so planters/sensors are discovered
         # even when schema entity arrays are missing, delayed, or malformed.
@@ -136,6 +181,22 @@ class WateringIoCoordinator:
         planter_wildcard = planter_template.replace("{id}", "+")
         unsub = await mqtt.async_subscribe(self.hass, planter_wildcard, self._handle_status, qos=0)
         self._unsubs.append(unsub)
+
+        event_template = topics.get("planterWateringEventTemplate")
+        if event_template:
+            event_wildcard = event_template.replace("{id}", "+")
+            unsub = await mqtt.async_subscribe(self.hass, event_wildcard, self._handle_watering_event, qos=0)
+            self._unsubs.append(unsub)
+
+        manual_unassigned_event = topics.get("manualUnassignedEvent")
+        if manual_unassigned_event:
+            unsub = await mqtt.async_subscribe(
+                self.hass,
+                manual_unassigned_event,
+                self._handle_watering_event,
+                qos=0,
+            )
+            self._unsubs.append(unsub)
 
         sensor_template = topics.get("sensorStatusTemplate", f"{self.prefix}/sensors/{{sensorModbusId}}/status")
         sensor_wildcard = sensor_template.replace("{sensorModbusId}", "+")
@@ -205,8 +266,17 @@ class WateringIoCoordinator:
         topics = self.state.schema.get("topics", {})
         if msg.topic == topics.get("systemStatus"):
             self.state.system_status = data
+        elif msg.topic == topics.get("deviceStatus") or (
+            f"{self.prefix}/device/" in msg.topic and msg.topic.endswith("/status")
+        ):
+            self.state.device_status = data
         elif msg.topic == topics.get("pumpsStatus"):
             self.state.pumps_status = data
+        elif msg.topic == topics.get("sensorsStatus") or msg.topic == f"{self.prefix}/sensors/status":
+            for sensor in data.get("sensors", []):
+                sensor_id = extract_sensor_id(sensor)
+                if sensor_id:
+                    self.state.sensor_status[sensor_id] = sensor
         elif "/planter/" in msg.topic and msg.topic.endswith("/status"):
             planter_id = str(
                 data.get("planter_id")
@@ -215,7 +285,11 @@ class WateringIoCoordinator:
             )
             self.state.planter_status[planter_id] = data
         elif "/sensors/" in msg.topic and msg.topic.endswith("/status"):
-            sensor_id = str(data.get("sensorModbusId") or msg.topic.split("/sensors/")[-1].split("/")[0])
+            sensor_id = str(
+                data.get("sensor_modbus_id")
+                or data.get("sensorModbusId")
+                or msg.topic.split("/sensors/")[-1].split("/")[0]
+            )
             self.state.sensor_status[sensor_id] = data
         self._notify()
 
@@ -235,7 +309,7 @@ class WateringIoCoordinator:
             return None
 
     def _upsert_device(self) -> None:
-        device_id = self.state.device_info.get("deviceId")
+        device_id = self.state.device_info.get("device_id") or self.state.device_info.get("deviceId")
         if not device_id:
             return
         registry = dr.async_get(self.hass)

@@ -1,8 +1,7 @@
-"""Helpers for schema parsing."""
+"""Helpers for schema and payload parsing."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 
@@ -36,29 +35,9 @@ def coerce_numeric(value: Any) -> int | float | None:
     return None
 
 
-def milliseconds_to_seconds(value: Any) -> int | float | None:
-    """Convert a millisecond payload value to seconds."""
-    milliseconds = coerce_numeric(value)
-    if milliseconds is None:
-        return None
-    seconds = milliseconds / 1000
-    return int(seconds) if seconds.is_integer() else seconds
-
-
-def unix_to_utc_datetime(value: Any) -> datetime | None:
-    """Convert a Unix timestamp payload value to a UTC datetime."""
-    timestamp = coerce_numeric(value)
-    if timestamp is None:
-        return None
-    try:
-        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
-    except (OSError, OverflowError, ValueError):
-        return None
-
-
-def total_water_ml(total_dosing_ms: Any, pump_flow_ml_per_s: Any) -> int | float | None:
+def total_water_ml(total_dosing_s: Any, pump_flow_ml_per_s: Any) -> int | float | None:
     """Calculate total pumped water from dosing time and pump flow."""
-    total_seconds = milliseconds_to_seconds(total_dosing_ms)
+    total_seconds = coerce_numeric(total_dosing_s)
     flow = coerce_numeric(pump_flow_ml_per_s)
     if total_seconds is None or flow is None:
         return None
@@ -71,9 +50,20 @@ def total_water_ml(total_dosing_ms: Any, pump_flow_ml_per_s: Any) -> int | float
 def extract_sensor_id(item: Any) -> str | None:
     """Extract a sensor modbus id from mixed schema formats."""
     if isinstance(item, dict):
-        value = item.get("sensorModbusId")
+        value = item.get("sensor_modbus_id", item.get("sensorModbusId"))
     else:
         value = item
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def extract_planter_unique_id(item: Any) -> str | None:
+    """Extract a planter namespace unique id from schema data."""
+    if not isinstance(item, dict):
+        return None
+    value = item.get("unique_id")
     if value is None:
         return None
     text = str(value).strip()

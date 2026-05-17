@@ -14,9 +14,7 @@ from .helpers import (
     coerce_numeric,
     extract_planter_id,
     extract_sensor_id,
-    milliseconds_to_seconds,
     total_water_ml,
-    unix_to_utc_datetime,
 )
 
 SYSTEM_FIELDS = [
@@ -30,42 +28,34 @@ SYSTEM_FIELDS = [
     "buildTimeUtc",
 ]
 PLANTER_DOSING_FIELDS = [
-    "total_dosing_seconds",
-    "last_dosing_seconds",
-    "last_dosing_time",
-    "last_event_id",
+    "total_dosing_s",
     "total_water_ml",
 ]
 PLANTER_FIELDS = [
     "moisture",
-    "target",
-    "nextDoseInMs",
-    "state",
-    "valveMask",
-    "dose_ms",
+    "target_moisture",
+    "sensor_modbus_id",
+    "valve_route",
+    "next_dose_s",
     *PLANTER_DOSING_FIELDS,
 ]
-SENSOR_FIELDS = ["moisture", "temperature", "lastSeenMs", "missedScans"]
-PERCENTAGE_FIELDS = {"moisture", "target"}
+SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missedScans"]
+PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
 SIGNAL_STRENGTH_FIELDS = {"wifiRssi"}
-DURATION_FIELDS = {"total_dosing_seconds", "last_dosing_seconds"}
-TOTAL_INCREASING_FIELDS = {"total_dosing_seconds", "total_water_ml"}
+DURATION_FIELDS = {"total_dosing_s", "next_dose_s"}
+TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 
 
 def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | None = None):
     value = data.get(field)
     if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS:
         return coerce_numeric(value)
-    if field == "total_dosing_seconds":
-        return milliseconds_to_seconds(data.get("total_dosing_ms"))
-    if field == "last_dosing_seconds":
-        return milliseconds_to_seconds(data.get("last_dosing_ms"))
-    if field == "last_dosing_time":
-        return unix_to_utc_datetime(data.get("last_dosing_unix"))
-    if field == "last_event_id":
-        return coerce_numeric(data.get("last_event_id"))
+    if field == "total_dosing_s":
+        return coerce_numeric(data.get("total_dosing_s"))
+    if field == "next_dose_s":
+        return coerce_numeric(data.get("next_dose_in_s"))
     if field == "total_water_ml" and coordinator is not None:
-        return total_water_ml(data.get("total_dosing_ms"), coordinator.pump_1_flow_ml_per_s)
+        return total_water_ml(data.get("total_dosing_s"), coordinator.pump_1_flow_ml_per_s)
     return value
 
 
@@ -85,10 +75,6 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
         entity._attr_native_unit_of_measurement = UnitOfTime.SECONDS
         if field in TOTAL_INCREASING_FIELDS:
             entity._attr_state_class = SensorStateClass.TOTAL_INCREASING
-    elif field == "last_dosing_time":
-        timestamp_device_class = getattr(SensorDeviceClass, "TIMESTAMP", None)
-        if timestamp_device_class is not None:
-            entity._attr_device_class = timestamp_device_class
     elif field == "total_water_ml":
         # Home Assistant's water device class does not accept mL; volume does.
         volume_device_class = getattr(SensorDeviceClass, "VOLUME", None)
@@ -110,7 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         new_entities = []
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
-            if not planter_id or planter_id in added_planters:
+            if not planter_id or planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
             for field in PLANTER_FIELDS:
@@ -125,7 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 new_entities.append(WateringDynamicSensor(coordinator, sensor_id, field))
 
         for planter_id in coordinator.state.planter_status:
-            if planter_id in added_planters:
+            if planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
             for field in PLANTER_FIELDS:
@@ -163,7 +149,7 @@ class WateringPlanterSensor(WateringPlanterEntity, SensorEntity):
         super().__init__(coordinator, planter_id)
         self.field = field
         self._attr_name = f"Planter {planter_id} {field}"
-        self._attr_unique_id = f"{coordinator.device_id}_planter_{planter_id}_{field}"
+        self._attr_unique_id = f"{self.planter_unique_id}_{field}"
         _set_field_metadata(self, field)
 
     @property
