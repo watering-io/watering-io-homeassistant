@@ -16,6 +16,7 @@ SYSTEM_FIELDS = ["wifiRssi", "busCurrent", "uptime", "firmwareVersion", "buildGi
 PLANTER_FIELDS = ["moisture", "target", "nextDoseInMs", "state", "valveMask", "dose_ms"]
 SENSOR_FIELDS = ["moisture", "temperature", "lastSeenMs", "missedScans"]
 PERCENTAGE_FIELDS = {"moisture", "target"}
+SIGNAL_STRENGTH_FIELDS = {"wifiRssi"}
 
 
 def _coerce_numeric(value):
@@ -37,7 +38,7 @@ def _coerce_numeric(value):
 
 def _status_value(data: dict, field: str):
     value = data.get(field)
-    if field in PERCENTAGE_FIELDS:
+    if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS:
         return _coerce_numeric(value)
     return value
 
@@ -46,6 +47,10 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
     if field in PERCENTAGE_FIELDS:
         entity._attr_device_class = SensorDeviceClass.MOISTURE
         entity._attr_native_unit_of_measurement = PERCENTAGE
+        entity._attr_state_class = SensorStateClass.MEASUREMENT
+    elif field in SIGNAL_STRENGTH_FIELDS:
+        entity._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+        entity._attr_native_unit_of_measurement = "dBm"
         entity._attr_state_class = SensorStateClass.MEASUREMENT
 
 
@@ -102,10 +107,11 @@ class WateringSystemSensor(WateringEntity, SensorEntity):
         self.field = field
         self._attr_name = field
         self._attr_unique_id = f"{coordinator.device_id}_system_{field}"
+        _set_field_metadata(self, field)
 
     @property
     def native_value(self):
-        return self.coordinator.state.system_status.get(self.field)
+        return _status_value(self.coordinator.state.system_status, self.field)
 
 
 class WateringPlanterSensor(WateringPlanterEntity, SensorEntity):
