@@ -16,7 +16,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import DOMAIN
+from .const import CONF_PUMP_1_FLOW_ML_PER_S, DEFAULT_PUMP_1_FLOW_ML_PER_S, DOMAIN
 from .helpers import extract_planter_id, extract_sensor_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,6 +59,18 @@ class WateringIoCoordinator:
     @property
     def device_available(self) -> bool:
         return self.state.availability_online
+
+    @property
+    def pump_1_flow_ml_per_s(self) -> float:
+        value = self.entry.options.get(CONF_PUMP_1_FLOW_ML_PER_S, DEFAULT_PUMP_1_FLOW_ML_PER_S)
+        try:
+            flow = float(value)
+        except (TypeError, ValueError):
+            return DEFAULT_PUMP_1_FLOW_ML_PER_S
+        if flow < 0:
+            return DEFAULT_PUMP_1_FLOW_ML_PER_S
+        return flow
+
     @property
     def hub_device_info(self) -> DeviceInfo:
         return DeviceInfo(
@@ -78,7 +90,6 @@ class WateringIoCoordinator:
             model="Watering.IO Planter",
             via_device=hub_identifier,
         )
-
 
     def topic_is_stale(self, topic: str, seconds: int = 60) -> bool:
         last = self.state.topic_last_update.get(topic)
@@ -105,6 +116,7 @@ class WateringIoCoordinator:
             (f"{self.prefix}/system/status", self._handle_status),
             (f"{self.prefix}/pumps/status", self._handle_status),
             (f"{self.prefix}/planter/+/status", self._handle_status),
+            (f"{self.prefix}/planter/+/event/watering", self._handle_watering_event),
             (f"{self.prefix}/sensors/+/status", self._handle_status),
         ):
             unsub = await mqtt.async_subscribe(self.hass, topic, cb, qos=0)
@@ -196,12 +208,24 @@ class WateringIoCoordinator:
         elif msg.topic == topics.get("pumpsStatus"):
             self.state.pumps_status = data
         elif "/planter/" in msg.topic and msg.topic.endswith("/status"):
-            planter_id = str(data.get("id") or msg.topic.split("/planter/")[-1].split("/")[0])
+            planter_id = str(
+                data.get("planter_id")
+                or data.get("id")
+                or msg.topic.split("/planter/")[-1].split("/")[0]
+            )
             self.state.planter_status[planter_id] = data
         elif "/sensors/" in msg.topic and msg.topic.endswith("/status"):
             sensor_id = str(data.get("sensorModbusId") or msg.topic.split("/sensors/")[-1].split("/")[0])
             self.state.sensor_status[sensor_id] = data
         self._notify()
+
+    @callback
+    def _handle_watering_event(self, msg: ReceiveMessage) -> None:
+        data = self._safe_json(msg.payload)
+        if not isinstance(data, dict):
+            return
+        self._mark_topic_update(msg.topic)
+        _LOGGER.debug("Watering event on %s: %s", msg.topic, data)
 
     def _safe_json(self, payload: str) -> Any:
         try:

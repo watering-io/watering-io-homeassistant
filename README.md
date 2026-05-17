@@ -28,8 +28,37 @@ Entities are created for:
 - System sensors: uptime, Wi-Fi RSSI, bus current, firmware/build diagnostics
 - Pump binary sensors
 - Per-planter sensors and binary sensors
+- Per-planter dosing sensors for total dosing time, last dosing time, last dosing timestamp, last event ID, and calculated total water
 - Per-sensor moisture/temperature/online diagnostics
 - Sensor rescan button publishing `{}` to `<prefix>/command/sensors/rescan`
+
+## Dosing Measurements
+
+For each planter, the integration reads retained dosing values from:
+
+```text
+<prefix>/planter/<planter_id>/status
+```
+
+Supported dosing fields:
+
+- `total_dosing_ms` -> `sensor.planter_<id>_total_dosing_seconds`
+- `last_dosing_ms` -> `sensor.planter_<id>_last_dosing_seconds`
+- `last_dosing_unix` -> `sensor.planter_<id>_last_dosing_time`
+- `last_event_id` -> `sensor.planter_<id>_last_event_id`
+- `total_dosing_ms` plus pump calibration -> `sensor.planter_<id>_total_water_ml`
+
+`total_dosing_seconds` and `total_water_ml` are exposed as `total_increasing` sensors so they can be used with Home Assistant `utility_meter` helpers for daily, monthly, or seasonal totals.
+
+The pump flow calibration is available in the integration options:
+
+```text
+pump_1_flow_ml_per_s
+```
+
+The default is `1.0 mL/s`.
+
+Watering event messages from `<prefix>/planter/<planter_id>/event/watering` are logged at debug level only. They are not used for aggregation, so reconnects and retained status messages remain the source of truth for statistics.
 
 ## Dashboard Card
 
