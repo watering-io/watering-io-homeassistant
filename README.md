@@ -105,7 +105,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.10
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.11
 Resource type: JavaScript module
 ```
 

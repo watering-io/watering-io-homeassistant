@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.10";
+const CARD_VERSION = "0.1.11";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -341,7 +341,7 @@ class WateringIoPlanterCard extends HTMLElement {
           height: 18px;
           border-radius: 999px;
           overflow: visible;
-          background: linear-gradient(90deg, #d45f4f 0%, #e0b252 34%, #5dad62 67%, #2f8d74 100%);
+          background: linear-gradient(90deg, #c7473f 0%, #dfad4d 22%, #58ad63 50%, #dfad4d 78%, #c7473f 100%);
           box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
         }
 
