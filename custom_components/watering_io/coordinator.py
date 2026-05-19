@@ -44,6 +44,7 @@ class WateringIoCoordinator:
         self.prefix = entry.data["topic_prefix"].rstrip("/")
         self.state = WateringState()
         self._unsubs: list = []
+        self._subscribed_topics: set[tuple[str, str]] = set()
 
     async def async_initialize(self) -> None:
         await self._subscribe_base_topics()
@@ -52,6 +53,7 @@ class WateringIoCoordinator:
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
+        self._subscribed_topics.clear()
 
     @property
     def device_id(self) -> str:
@@ -159,66 +161,45 @@ class WateringIoCoordinator:
             (f"{self.prefix}/sensors/status", self._handle_status),
             (f"{self.prefix}/sensors/+/status", self._handle_status),
         ):
-            unsub = await mqtt.async_subscribe(self.hass, topic, cb, qos=0)
-            self._unsubs.append(unsub)
+            await self._subscribe_once(topic, cb)
 
     async def _subscribe_schema_topics(self) -> None:
         topics = self.state.schema.get("topics", {})
         for key in ("deviceStatus", "systemStatus", "pumpsStatus"):
             topic = topics.get(key)
             if topic:
-                unsub = await mqtt.async_subscribe(self.hass, topic, self._handle_status, qos=0)
-                self._unsubs.append(unsub)
+                await self._subscribe_once(topic, self._handle_status)
 
         topic = topics.get("sensorsStatus")
         if topic:
-            unsub = await mqtt.async_subscribe(self.hass, topic, self._handle_status, qos=0)
-            self._unsubs.append(unsub)
+            await self._subscribe_once(topic, self._handle_status)
 
         # Always subscribe to wildcard status topics so planters/sensors are discovered
         # even when schema entity arrays are missing, delayed, or malformed.
         planter_template = topics.get("planterStatusTemplate", f"{self.prefix}/planter/{{id}}/status")
         planter_wildcard = planter_template.replace("{id}", "+")
-        unsub = await mqtt.async_subscribe(self.hass, planter_wildcard, self._handle_status, qos=0)
-        self._unsubs.append(unsub)
+        await self._subscribe_once(planter_wildcard, self._handle_status)
 
         event_template = topics.get("planterWateringEventTemplate")
         if event_template:
             event_wildcard = event_template.replace("{id}", "+")
-            unsub = await mqtt.async_subscribe(self.hass, event_wildcard, self._handle_watering_event, qos=0)
-            self._unsubs.append(unsub)
+            await self._subscribe_once(event_wildcard, self._handle_watering_event)
 
         manual_unassigned_event = topics.get("manualUnassignedEvent")
         if manual_unassigned_event:
-            unsub = await mqtt.async_subscribe(
-                self.hass,
-                manual_unassigned_event,
-                self._handle_watering_event,
-                qos=0,
-            )
-            self._unsubs.append(unsub)
+            await self._subscribe_once(manual_unassigned_event, self._handle_watering_event)
 
         sensor_template = topics.get("sensorStatusTemplate", f"{self.prefix}/sensors/{{sensorModbusId}}/status")
         sensor_wildcard = sensor_template.replace("{sensorModbusId}", "+")
-        unsub = await mqtt.async_subscribe(self.hass, sensor_wildcard, self._handle_status, qos=0)
+        await self._subscribe_once(sensor_wildcard, self._handle_status)
+
+    async def _subscribe_once(self, topic: str, cb) -> None:
+        key = (topic, getattr(cb, "__name__", repr(cb)))
+        if key in self._subscribed_topics:
+            return
+        unsub = await mqtt.async_subscribe(self.hass, topic, cb, qos=0)
         self._unsubs.append(unsub)
-
-        # Keep explicit subscriptions as well for strict schema behavior compatibility.
-        for planter in self.state.schema.get("entities", {}).get("planters", []):
-            planter_id = extract_planter_id(planter)
-            if not planter_id:
-                continue
-            topic = planter_template.replace("{id}", planter_id)
-            unsub = await mqtt.async_subscribe(self.hass, topic, self._handle_status, qos=0)
-            self._unsubs.append(unsub)
-
-        for sensor in self.state.schema.get("entities", {}).get("sensors", []):
-            sensor_id = extract_sensor_id(sensor)
-            if not sensor_id:
-                continue
-            topic = sensor_template.replace("{sensorModbusId}", sensor_id)
-            unsub = await mqtt.async_subscribe(self.hass, topic, self._handle_status, qos=0)
-            self._unsubs.append(unsub)
+        self._subscribed_topics.add(key)
 
     @callback
     def _notify(self) -> None:

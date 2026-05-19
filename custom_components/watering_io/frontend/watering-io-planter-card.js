@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.9";
+const CARD_VERSION = "0.1.10";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -103,6 +103,7 @@ class WateringIoPlanterCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._lastRenderKey = null;
   }
 
   static getConfigForm() {
@@ -140,7 +141,8 @@ class WateringIoPlanterCard extends HTMLElement {
       crop: "generic",
       ...config,
     };
-    this._render();
+    this._lastRenderKey = null;
+    this._render(true);
   }
 
   set hass(hass) {
@@ -161,7 +163,7 @@ class WateringIoPlanterCard extends HTMLElement {
     };
   }
 
-  _render() {
+  _render(force = false) {
     if (!this.shadowRoot || !this.config) {
       return;
     }
@@ -171,6 +173,25 @@ class WateringIoPlanterCard extends HTMLElement {
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const planterState = entityState(this._hass, this.config.state_entity);
+    const renderKey = JSON.stringify([
+      this.config.name || "",
+      this.config.crop || "",
+      this.config.moisture_entity || "",
+      moistureState?.state || "",
+      moistureState?.attributes?.friendly_name || "",
+      this.config.target_entity || "",
+      targetState?.state || "",
+      this.config.online_entity || "",
+      onlineState?.state || "",
+      this.config.watering_entity || "",
+      wateringState?.state || "",
+      this.config.state_entity || "",
+      planterState?.state || "",
+    ]);
+    if (!force && renderKey === this._lastRenderKey) {
+      return;
+    }
+    this._lastRenderKey = renderKey;
 
     const moisture = parsePercent(moistureState);
     const target = parsePercent(targetState);
