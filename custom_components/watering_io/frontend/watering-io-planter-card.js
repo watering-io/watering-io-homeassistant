@@ -407,12 +407,6 @@ class WateringIoPlanterCard extends HTMLElement {
           color: var(--secondary-text-color);
         }
 
-        .target .edit-label {
-          color: var(--primary-color);
-          font-size: 12px;
-          font-weight: 650;
-        }
-
         .bar {
           position: relative;
           height: 18px;
@@ -585,7 +579,7 @@ class WateringIoPlanterCard extends HTMLElement {
               Target
               <strong>
                 ${escapeHtml(formatPercent(target))}
-                ${targetEditable ? '<span class="edit-label">Edit</span><ha-icon icon="mdi:pencil"></ha-icon>' : ""}
+                ${targetEditable ? '<ha-icon icon="mdi:pencil"></ha-icon>' : ""}
               </strong>
             </button>
           </div>
