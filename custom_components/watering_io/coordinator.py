@@ -24,6 +24,14 @@ _LOGGER = logging.getLogger(__name__)
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 
 
+def _first_value(data: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = data.get(key)
+        if value is not None:
+            return value
+    return None
+
+
 @dataclass
 class WateringState:
     availability_online: bool = False
@@ -100,7 +108,11 @@ class WateringIoCoordinator:
             name=self.state.device_info.get("name", "Watering.IO Hub"),
             manufacturer="Watering.IO",
             model="Watering.IO Hub",
-            sw_version=self.state.device_info.get("firmwareVersion"),
+            sw_version=_first_value(
+                self.state.device_info,
+                "firmware_version",
+                "firmwareVersion",
+            ),
         )
 
     def planter_unique_id(self, planter_id: str) -> str | None:
@@ -165,32 +177,53 @@ class WateringIoCoordinator:
 
     async def _subscribe_schema_topics(self) -> None:
         topics = self.state.schema.get("topics", {})
-        for key in ("deviceStatus", "systemStatus", "pumpsStatus"):
-            topic = topics.get(key)
+        for keys in (
+            ("device_status", "deviceStatus"),
+            ("system_status", "systemStatus"),
+            ("pumps_status", "pumpsStatus"),
+        ):
+            topic = _first_value(topics, *keys)
             if topic:
                 await self._subscribe_once(topic, self._handle_status)
 
-        topic = topics.get("sensorsStatus")
+        topic = _first_value(topics, "sensors_status", "sensorsStatus")
         if topic:
             await self._subscribe_once(topic, self._handle_status)
 
         # Always subscribe to wildcard status topics so planters/sensors are discovered
         # even when schema entity arrays are missing, delayed, or malformed.
-        planter_template = topics.get("planterStatusTemplate", f"{self.prefix}/planter/{{id}}/status")
+        planter_template = _first_value(
+            topics,
+            "planter_status_template",
+            "planterStatusTemplate",
+        ) or f"{self.prefix}/planter/{{id}}/status"
         planter_wildcard = planter_template.replace("{id}", "+")
         await self._subscribe_once(planter_wildcard, self._handle_status)
 
-        event_template = topics.get("planterWateringEventTemplate")
+        event_template = _first_value(
+            topics,
+            "planter_watering_event_template",
+            "planterWateringEventTemplate",
+        )
         if event_template:
             event_wildcard = event_template.replace("{id}", "+")
             await self._subscribe_once(event_wildcard, self._handle_watering_event)
 
-        manual_unassigned_event = topics.get("manualUnassignedEvent")
+        manual_unassigned_event = _first_value(
+            topics,
+            "manual_unassigned_event",
+            "manualUnassignedEvent",
+        )
         if manual_unassigned_event:
             await self._subscribe_once(manual_unassigned_event, self._handle_watering_event)
 
-        sensor_template = topics.get("sensorStatusTemplate", f"{self.prefix}/sensors/{{sensorModbusId}}/status")
+        sensor_template = _first_value(
+            topics,
+            "sensor_status_template",
+            "sensorStatusTemplate",
+        ) or f"{self.prefix}/sensors/{{sensor_modbus_id}}/status"
         sensor_wildcard = sensor_template.replace("{sensorModbusId}", "+")
+        sensor_wildcard = sensor_wildcard.replace("{sensor_modbus_id}", "+")
         await self._subscribe_once(sensor_wildcard, self._handle_status)
 
     async def _subscribe_once(self, topic: str, cb) -> None:
@@ -229,8 +262,9 @@ class WateringIoCoordinator:
         data = self._safe_json(msg.payload)
         if not isinstance(data, dict):
             return
-        if data.get("schemaVersion") != 1:
-            _LOGGER.warning("Unsupported schemaVersion: %s", data.get("schemaVersion"))
+        schema_version = _first_value(data, "schema_version", "schemaVersion")
+        if schema_version != 1:
+            _LOGGER.warning("Unsupported schema_version: %s", schema_version)
             return
         self.state.schema = data
         self._mark_topic_update(msg.topic)
@@ -245,15 +279,24 @@ class WateringIoCoordinator:
         self._mark_topic_update(msg.topic)
 
         topics = self.state.schema.get("topics", {})
-        if msg.topic == topics.get("systemStatus"):
+        if (
+            msg.topic == _first_value(topics, "system_status", "systemStatus")
+            or msg.topic == f"{self.prefix}/system/status"
+        ):
             self.state.system_status = data
-        elif msg.topic == topics.get("deviceStatus") or (
+        elif msg.topic == _first_value(topics, "device_status", "deviceStatus") or (
             f"{self.prefix}/device/" in msg.topic and msg.topic.endswith("/status")
         ):
             self.state.device_status = data
-        elif msg.topic == topics.get("pumpsStatus"):
+        elif (
+            msg.topic == _first_value(topics, "pumps_status", "pumpsStatus")
+            or msg.topic == f"{self.prefix}/pumps/status"
+        ):
             self.state.pumps_status = data
-        elif msg.topic == topics.get("sensorsStatus") or msg.topic == f"{self.prefix}/sensors/status":
+        elif (
+            msg.topic == _first_value(topics, "sensors_status", "sensorsStatus")
+            or msg.topic == f"{self.prefix}/sensors/status"
+        ):
             for sensor in data.get("sensors", []):
                 sensor_id = extract_sensor_id(sensor)
                 if sensor_id:
@@ -299,6 +342,10 @@ class WateringIoCoordinator:
             identifiers={(DOMAIN, device_id)},
             name=self.state.device_info.get("name", "Watering.IO Hub"),
             model="Watering.IO Hub",
-            sw_version=self.state.device_info.get("firmwareVersion"),
+            sw_version=_first_value(
+                self.state.device_info,
+                "firmware_version",
+                "firmwareVersion",
+            ),
             manufacturer="Watering.IO",
         )

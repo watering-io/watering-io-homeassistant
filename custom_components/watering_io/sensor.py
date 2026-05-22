@@ -18,14 +18,14 @@ from .helpers import (
 )
 
 SYSTEM_FIELDS = [
-    "wifiRssi",
-    "busCurrent",
-    "uptime",
-    "firmwareVersion",
-    "buildGit",
-    "buildCommit",
-    "buildDirty",
-    "buildTimeUtc",
+    "uptime_s",
+    "wifi_rssi",
+    "bus_current",
+    "firmware_version",
+    "build_git",
+    "build_commit",
+    "build_dirty",
+    "build_time_utc",
 ]
 PLANTER_DOSING_FIELDS = [
     "total_dosing_s",
@@ -39,17 +39,39 @@ PLANTER_FIELDS = [
     "next_dose_s",
     *PLANTER_DOSING_FIELDS,
 ]
-SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missedScans"]
+SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missed_scans"]
 PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
-SIGNAL_STRENGTH_FIELDS = {"wifiRssi"}
+SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
-DURATION_FIELDS = {"total_dosing_s", "next_dose_s"}
+DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
+NUMERIC_FIELDS = {"bus_current", "last_seen_s", "missed_scans", *DURATION_FIELDS}
+
+FIELD_ALIASES = {
+    "uptime_s": ("uptime_s", "uptime"),
+    "wifi_rssi": ("wifi_rssi", "wifiRssi"),
+    "bus_current": ("bus_current", "busCurrent"),
+    "firmware_version": ("firmware_version", "firmwareVersion"),
+    "build_git": ("build_git", "buildGit"),
+    "build_commit": ("build_commit", "buildCommit"),
+    "build_dirty": ("build_dirty", "buildDirty"),
+    "build_time_utc": ("build_time_utc", "buildTimeUtc"),
+    "missed_scans": ("missed_scans", "missedScans"),
+}
+
+
+def _field_value(data: dict, field: str):
+    for key in FIELD_ALIASES.get(field, (field,)):
+        if key in data:
+            return data.get(key)
+    return None
 
 
 def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | None = None):
-    value = data.get(field)
+    value = _field_value(data, field)
     if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS or field in TEMPERATURE_FIELDS:
+        return coerce_numeric(value)
+    if field in NUMERIC_FIELDS:
         return coerce_numeric(value)
     if field == "total_dosing_s":
         return coerce_numeric(data.get("total_dosing_s"))

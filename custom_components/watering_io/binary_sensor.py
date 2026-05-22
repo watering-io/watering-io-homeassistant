@@ -16,9 +16,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
         [
-            PumpBinarySensor(coordinator, "pumpA", "pump_a"),
-            PumpBinarySensor(coordinator, "pumpB", "pump_b"),
-            PumpBinarySensor(coordinator, "anyOn", "pump_any"),
+            PumpBinarySensor(coordinator, "pump_a", "pump_a", "pumpA"),
+            PumpBinarySensor(coordinator, "pump_b", "pump_b", "pumpB"),
+            PumpBinarySensor(coordinator, "any_on", "pump_any", "anyOn"),
         ]
     )
 
@@ -73,15 +73,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class PumpBinarySensor(WateringEntity, BinarySensorEntity):
-    def __init__(self, coordinator: WateringIoCoordinator, field: str, suffix: str) -> None:
+    def __init__(
+        self,
+        coordinator: WateringIoCoordinator,
+        field: str,
+        suffix: str,
+        legacy_field: str | None = None,
+    ) -> None:
         super().__init__(coordinator)
         self.field = field
+        self.legacy_field = legacy_field
         self._attr_name = suffix
         self._attr_unique_id = f"{coordinator.device_id}_{suffix}"
 
     @property
     def is_on(self):
-        return bool(self.coordinator.state.pumps_status.get(self.field, False))
+        return bool(
+            self.coordinator.state.pumps_status.get(
+                self.field,
+                self.coordinator.state.pumps_status.get(self.legacy_field, False),
+            )
+        )
 
 
 class PlanterBinarySensor(WateringPlanterEntity, BinarySensorEntity):
