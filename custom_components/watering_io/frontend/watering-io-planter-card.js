@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.11";
+const CARD_VERSION = "0.1.12";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -78,6 +78,22 @@ function formatPercent(value) {
     return "--";
   }
   return `${Math.round(value)}%`;
+}
+
+function cssPercent(value) {
+  return `${clamp(value, 0, 100).toFixed(2)}%`;
+}
+
+function moistureGradient(target) {
+  if (target === null) {
+    return "linear-gradient(90deg, #c7473f 0%, #dfad4d 22%, #58ad63 50%, #dfad4d 78%, #c7473f 100%)";
+  }
+
+  const greenStart = clamp(target - 4, 0, 100);
+  const greenEnd = clamp(target + 4, 0, 100);
+  const leftAmber = greenStart * 0.44;
+  const rightAmber = greenEnd + (100 - greenEnd) * 0.56;
+  return `linear-gradient(90deg, #c7473f 0%, #dfad4d ${cssPercent(leftAmber)}, #58ad63 ${cssPercent(greenStart)}, #58ad63 ${cssPercent(greenEnd)}, #dfad4d ${cssPercent(rightAmber)}, #c7473f 100%)`;
 }
 
 function cropUrl(crop) {
@@ -196,7 +212,8 @@ class WateringIoPlanterCard extends HTMLElement {
     const moisture = parsePercent(moistureState);
     const target = parsePercent(targetState);
     const moistureWidth = moisture === null ? 0 : moisture;
-    const targetLeft = target === null ? 0 : target;
+    const moistureLeft = moisture === null ? 0 : moisture;
+    const barGradient = moistureGradient(target);
     const title =
       this.config.name ||
       moistureState?.attributes?.friendly_name?.replace(/\s+moisture$/i, "") ||
@@ -341,7 +358,7 @@ class WateringIoPlanterCard extends HTMLElement {
           height: 18px;
           border-radius: 999px;
           overflow: visible;
-          background: linear-gradient(90deg, #c7473f 0%, #dfad4d 22%, #58ad63 50%, #dfad4d 78%, #c7473f 100%);
+          background: ${barGradient};
           box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
         }
 
@@ -365,13 +382,13 @@ class WateringIoPlanterCard extends HTMLElement {
           position: absolute;
           top: -5px;
           bottom: -5px;
-          left: ${targetLeft}%;
+          left: ${moistureLeft}%;
           width: 3px;
           transform: translateX(-50%);
           border-radius: 999px;
           background: var(--primary-text-color);
           box-shadow: 0 0 0 2px var(--card-background-color, #fff), 0 2px 7px rgba(0, 0, 0, 0.25);
-          display: ${target === null ? "none" : "block"};
+          display: ${moisture === null ? "none" : "block"};
         }
 
         .scale {
