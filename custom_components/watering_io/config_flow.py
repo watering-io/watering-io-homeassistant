@@ -22,12 +22,12 @@ CONF_SENSOR_MODBUS_ID = "sensor_modbus_id"
 CONF_TARGET_MOISTURE = "target_moisture"
 CONF_VALVE_ROUTE = "valve_route"
 
-MENU_OPTIONS = [
-    "pump_calibration",
-    "planter_set",
-    "planter_delete",
-    "refresh_planters",
-]
+MENU_OPTIONS = {
+    "pump_calibration": "Pump calibration",
+    "planter_set": "Add or update planter",
+    "planter_delete": "Delete planter",
+    "refresh_planters": "Refresh planter list",
+}
 
 
 class WateringIoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
