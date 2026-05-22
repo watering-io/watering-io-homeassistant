@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.18";
+const CARD_VERSION = "0.1.19";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
