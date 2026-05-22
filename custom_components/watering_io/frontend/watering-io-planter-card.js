@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.13";
+const CARD_VERSION = "0.1.14";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -33,7 +33,6 @@ const FORM_LABELS = {
   crop: "Crop picture",
   moisture_entity: "Moisture entity",
   target_entity: "Target entity",
-  target_number_entity: "Target edit entity",
   online_entity: "Online entity",
   watering_entity: "Watering entity",
   state_entity: "State entity",
@@ -116,6 +115,16 @@ function chipClass(base, stateObj, activeState = "on") {
   return stateObj.state === activeState ? `${base} active` : base;
 }
 
+function targetNumberEntity(config) {
+  if (config?.target_number_entity) {
+    return config.target_number_entity;
+  }
+  if (config?.target_entity?.startsWith("sensor.")) {
+    return `number.${config.target_entity.slice("sensor.".length)}`;
+  }
+  return undefined;
+}
+
 class WateringIoPlanterCard extends HTMLElement {
   constructor() {
     super();
@@ -138,7 +147,6 @@ class WateringIoPlanterCard extends HTMLElement {
         },
         { name: "moisture_entity", required: true, selector: { entity: { domain: "sensor" } } },
         { name: "target_entity", required: true, selector: { entity: { domain: "sensor" } } },
-        { name: "target_number_entity", selector: { entity: { domain: "number" } } },
         { name: "online_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "watering_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "state_entity", selector: { entity: { domain: "sensor" } } },
@@ -191,6 +199,8 @@ class WateringIoPlanterCard extends HTMLElement {
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const planterState = entityState(this._hass, this.config.state_entity);
+    const targetEditEntity = targetNumberEntity(this.config);
+    const targetNumberState = entityState(this._hass, targetEditEntity);
     const renderKey = JSON.stringify([
       this.config.name || "",
       this.config.crop || "",
@@ -199,7 +209,8 @@ class WateringIoPlanterCard extends HTMLElement {
       moistureState?.attributes?.friendly_name || "",
       this.config.target_entity || "",
       targetState?.state || "",
-      this.config.target_number_entity || "",
+      targetEditEntity || "",
+      targetNumberState?.state || "",
       this.config.online_entity || "",
       onlineState?.state || "",
       this.config.watering_entity || "",
@@ -225,7 +236,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const wateringLabel = wateringState?.state === "on" ? "Watering" : "Idle";
     const stateLabel = stateText(planterState, "No state");
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
-    const targetEditable = Boolean(this.config.target_number_entity);
+    const targetEditable = Boolean(targetEditEntity && targetNumberState);
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -484,14 +495,15 @@ class WateringIoPlanterCard extends HTMLElement {
   }
 
   _openTargetEditor() {
-    if (!this.config?.target_number_entity) {
+    const entityId = targetNumberEntity(this.config);
+    if (!entityId) {
       return;
     }
     this.dispatchEvent(
       new CustomEvent("hass-more-info", {
         bubbles: true,
         composed: true,
-        detail: { entityId: this.config.target_number_entity },
+        detail: { entityId },
       })
     );
   }

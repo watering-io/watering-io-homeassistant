@@ -84,12 +84,13 @@ name: Tomatoes
 crop: tomato
 moisture_entity: sensor.planter_1_moisture
 target_entity: sensor.planter_1_target_moisture
-target_number_entity: number.planter_1_target_moisture
 online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
 ```
 
-The card always displays `target_entity`, which comes from the planter MQTT status topic. If `target_number_entity` is configured, tapping the target value opens the native Home Assistant editor for that number entity. Saving a new value publishes the full planter config to `<prefix>/config/planter/set` with only `target_moisture` changed, then refreshes the cached planter config.
+The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens the native Home Assistant editor for the matching number entity, for example `number.planter_1_target_moisture` for `sensor.planter_1_target_moisture`. Saving a new value publishes the full planter config to `<prefix>/config/planter/set` with only `target_moisture` changed, then refreshes the cached planter config.
+
+If your entity IDs do not follow that matching pattern, you can still override the edit entity in YAML with `target_number_entity`.
 
 Available crop presets:
 
@@ -123,7 +124,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.13
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.14
 Resource type: JavaScript module
 ```
 
