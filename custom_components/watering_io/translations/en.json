@@ -1,0 +1,45 @@
+{
+  "options": {
+    "menu_options": {
+      "pump_calibration": "Pump calibration",
+      "planter_set": "Add or update planter",
+      "planter_delete": "Delete planter",
+      "refresh_planters": "Refresh planter list"
+    },
+    "step": {
+      "pump_calibration": {
+        "title": "Pump calibration",
+        "description": "Set the pump flow used to calculate total water from dosing seconds.",
+        "data": {
+          "pump_1_flow_ml_per_s": "Pump 1 flow (mL/s)"
+        }
+      },
+      "planter_set": {
+        "title": "Add or update planter",
+        "description": "Send a planter configuration to the Watering.IO Hub.",
+        "data": {
+          "planter_id": "Planter ID",
+          "enabled": "Enabled",
+          "sensor_modbus_id": "Sensor Modbus ID",
+          "valve_route": "Valve route",
+          "target_moisture": "Target moisture (%)",
+          "hysteresis": "Hysteresis (%)"
+        }
+      },
+      "planter_delete": {
+        "title": "Delete planter",
+        "description": "Delete one planter configuration from the Watering.IO Hub.",
+        "data": {
+          "planter_id": "Planter ID"
+        }
+      },
+      "refresh_planters": {
+        "title": "Refresh planter list",
+        "description": "A planter list refresh was requested from the hub. The integration currently has {planter_count} planter configuration(s) cached."
+      }
+    },
+    "error": {
+      "integration_not_loaded": "The Watering.IO integration is not loaded."
+    }
+  }
+}

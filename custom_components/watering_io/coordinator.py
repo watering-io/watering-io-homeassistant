@@ -42,6 +42,8 @@ class WateringState:
     pumps_status: dict[str, Any] = field(default_factory=dict)
     planter_status: dict[str, dict[str, Any]] = field(default_factory=dict)
     sensor_status: dict[str, dict[str, Any]] = field(default_factory=dict)
+    planter_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    last_config_ack: dict[str, Any] = field(default_factory=dict)
     topic_last_update: dict[str, datetime] = field(default_factory=dict)
 
 
@@ -158,11 +160,51 @@ class WateringIoCoordinator:
             retain=False,
         )
 
+    async def async_publish_planter_set(
+        self,
+        *,
+        planter_id: int,
+        enabled: bool,
+        sensor_modbus_id: int,
+        valve_route: int,
+        target_moisture: float,
+        hysteresis: float,
+    ) -> None:
+        payload = {
+            "planter_id": planter_id,
+            "enabled": enabled,
+            "sensor_modbus_id": sensor_modbus_id,
+            "valve_route": valve_route,
+            "target_moisture": target_moisture,
+            "hysteresis": hysteresis,
+        }
+        await self._publish_json(f"{self.prefix}/config/planter/set", payload)
+
+    async def async_publish_planter_delete(self, planter_id: int) -> None:
+        await self._publish_json(
+            f"{self.prefix}/config/planter/delete",
+            {"planter_id": planter_id},
+        )
+
+    async def async_publish_planter_get(self) -> None:
+        await self._publish_json(f"{self.prefix}/config/planter/get", {})
+
+    async def _publish_json(self, topic: str, payload: dict[str, Any]) -> None:
+        await mqtt.async_publish(
+            self.hass,
+            topic,
+            json.dumps(payload, separators=(",", ":")),
+            qos=0,
+            retain=False,
+        )
+
     async def _subscribe_base_topics(self) -> None:
         for topic, cb in (
             (f"{self.prefix}/device/availability", self._handle_availability),
             (f"{self.prefix}/device/info", self._handle_device_info),
             (f"{self.prefix}/integration/schema", self._handle_schema),
+            (f"{self.prefix}/config/planter/list", self._handle_planter_config_list),
+            (f"{self.prefix}/config/ack", self._handle_config_ack),
             # Fallback subscriptions so we can discover planter/sensor entities even
             # before schema is received or when schema entity arrays are incomplete.
             (f"{self.prefix}/device/+/status", self._handle_status),
@@ -324,6 +366,29 @@ class WateringIoCoordinator:
             return
         self._mark_topic_update(msg.topic)
         _LOGGER.debug("Watering event on %s: %s", msg.topic, data)
+
+    @callback
+    def _handle_planter_config_list(self, msg: ReceiveMessage) -> None:
+        data = self._safe_json(msg.payload)
+        if not isinstance(data, dict):
+            return
+        self._mark_topic_update(msg.topic)
+        configs = {}
+        for config in data.get("configs", []):
+            planter_id = extract_planter_id(config)
+            if planter_id:
+                configs[planter_id] = config
+        self.state.planter_configs = configs
+        self._notify()
+
+    @callback
+    def _handle_config_ack(self, msg: ReceiveMessage) -> None:
+        data = self._safe_json(msg.payload)
+        if not isinstance(data, dict):
+            return
+        self.state.last_config_ack = data
+        self._mark_topic_update(msg.topic)
+        self._notify()
 
     def _safe_json(self, payload: str) -> Any:
         try:

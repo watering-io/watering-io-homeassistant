@@ -32,6 +32,20 @@ Entities are created for:
 - Per-sensor moisture/temperature/online diagnostics
 - Sensor rescan button publishing `{}` to `<prefix>/command/sensors/rescan`
 
+## Planter Configuration
+
+Planters can be added, updated, or deleted from **Settings > Devices & services > Watering.IO Hub > Configure**.
+
+The integration publishes planter configuration commands to:
+
+```text
+<prefix>/config/planter/set
+<prefix>/config/planter/delete
+<prefix>/config/planter/get
+```
+
+The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, and `hysteresis` to the hub. The integration also listens for `<prefix>/config/planter/list` and `<prefix>/config/ack` so future UI steps can surface hub feedback.
+
 ## Dosing Measurements
 
 For each planter, the integration reads retained dosing values from:
