@@ -31,6 +31,7 @@ Entities are created for:
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture/temperature/online diagnostics
 - Sensor rescan button publishing `{}` to `<prefix>/command/sensors/rescan`
+- Per-planter target moisture number entities that publish updates through the planter config command
 
 ## Planter Configuration
 
@@ -83,9 +84,12 @@ name: Tomatoes
 crop: tomato
 moisture_entity: sensor.planter_1_moisture
 target_entity: sensor.planter_1_target_moisture
+target_number_entity: number.planter_1_target_moisture
 online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
 ```
+
+The card always displays `target_entity`, which comes from the planter MQTT status topic. If `target_number_entity` is configured, tapping the target value opens the native Home Assistant editor for that number entity. Saving a new value publishes the full planter config to `<prefix>/config/planter/set` with only `target_moisture` changed, then refreshes the cached planter config.
 
 Available crop presets:
 
@@ -119,7 +123,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.12
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.13
 Resource type: JavaScript module
 ```
 

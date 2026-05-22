@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.12";
+const CARD_VERSION = "0.1.13";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -33,6 +33,7 @@ const FORM_LABELS = {
   crop: "Crop picture",
   moisture_entity: "Moisture entity",
   target_entity: "Target entity",
+  target_number_entity: "Target edit entity",
   online_entity: "Online entity",
   watering_entity: "Watering entity",
   state_entity: "State entity",
@@ -137,6 +138,7 @@ class WateringIoPlanterCard extends HTMLElement {
         },
         { name: "moisture_entity", required: true, selector: { entity: { domain: "sensor" } } },
         { name: "target_entity", required: true, selector: { entity: { domain: "sensor" } } },
+        { name: "target_number_entity", selector: { entity: { domain: "number" } } },
         { name: "online_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "watering_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "state_entity", selector: { entity: { domain: "sensor" } } },
@@ -197,6 +199,7 @@ class WateringIoPlanterCard extends HTMLElement {
       moistureState?.attributes?.friendly_name || "",
       this.config.target_entity || "",
       targetState?.state || "",
+      this.config.target_number_entity || "",
       this.config.online_entity || "",
       onlineState?.state || "",
       this.config.watering_entity || "",
@@ -222,6 +225,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const wateringLabel = wateringState?.state === "on" ? "Watering" : "Idle";
     const stateLabel = stateText(planterState, "No state");
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
+    const targetEditable = Boolean(this.config.target_number_entity);
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -340,11 +344,32 @@ class WateringIoPlanterCard extends HTMLElement {
         }
 
         .target {
+          border: 0;
+          background: transparent;
           color: var(--secondary-text-color);
+          cursor: default;
           font-size: 13px;
+          font-family: inherit;
           line-height: 1.25;
+          margin: 0;
+          padding: 0;
           text-align: right;
           white-space: nowrap;
+        }
+
+        .target.editable {
+          cursor: pointer;
+        }
+
+        .target.editable:hover strong,
+        .target.editable:focus-visible strong {
+          color: var(--primary-color);
+        }
+
+        .target:focus-visible {
+          outline: 2px solid var(--primary-color);
+          outline-offset: 4px;
+          border-radius: 6px;
         }
 
         .target strong {
@@ -433,10 +458,10 @@ class WateringIoPlanterCard extends HTMLElement {
               <div class="label">Moisture</div>
               <div class="value">${escapeHtml(formatPercent(moisture))}</div>
             </div>
-            <div class="target">
+            <button class="target ${targetEditable ? "editable" : ""}" type="button" aria-label="${targetEditable ? "Edit target moisture" : "Target moisture"}">
               Target
               <strong>${escapeHtml(formatPercent(target))}</strong>
-            </div>
+            </button>
           </div>
           <div class="bar" role="img" aria-label="Moisture ${escapeHtml(formatPercent(moisture))}, target ${escapeHtml(formatPercent(target))}">
             <div class="fill-mask"></div>
@@ -451,6 +476,24 @@ class WateringIoPlanterCard extends HTMLElement {
         </div>
       </ha-card>
     `;
+
+    const targetButton = this.shadowRoot.querySelector(".target.editable");
+    if (targetButton) {
+      targetButton.addEventListener("click", () => this._openTargetEditor());
+    }
+  }
+
+  _openTargetEditor() {
+    if (!this.config?.target_number_entity) {
+      return;
+    }
+    this.dispatchEvent(
+      new CustomEvent("hass-more-info", {
+        bubbles: true,
+        composed: true,
+        detail: { entityId: this.config.target_number_entity },
+      })
+    );
   }
 }
 

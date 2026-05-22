@@ -68,3 +68,39 @@ def extract_planter_unique_id(item: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _config_value(config: dict[str, Any], key: str) -> Any:
+    aliases = {
+        "planter_id": ("planter_id", "id"),
+        "sensor_modbus_id": ("sensor_modbus_id", "sensorModbusId"),
+        "valve_route": ("valve_route", "valveRoute"),
+        "target_moisture": ("target_moisture", "targetMoisture"),
+    }
+    for alias in aliases.get(key, (key,)):
+        if config.get(alias) is not None:
+            return config.get(alias)
+    return None
+
+
+def planter_config_set_payload(config: dict[str, Any], target_moisture: float) -> dict[str, Any]:
+    """Build a complete planter set payload with an updated target moisture."""
+    required_keys = (
+        "planter_id",
+        "enabled",
+        "sensor_modbus_id",
+        "valve_route",
+        "hysteresis",
+    )
+    missing = [key for key in required_keys if _config_value(config, key) is None]
+    if missing:
+        raise ValueError(f"Missing planter config field(s): {', '.join(missing)}")
+
+    return {
+        "planter_id": int(_config_value(config, "planter_id")),
+        "enabled": bool(_config_value(config, "enabled")),
+        "sensor_modbus_id": int(_config_value(config, "sensor_modbus_id")),
+        "valve_route": int(_config_value(config, "valve_route")),
+        "target_moisture": float(target_moisture),
+        "hysteresis": float(_config_value(config, "hysteresis")),
+    }
