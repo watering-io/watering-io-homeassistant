@@ -57,6 +57,7 @@ FIELD_ALIASES = {
     "build_dirty": ("build_dirty", "buildDirty"),
     "build_time_utc": ("build_time_utc", "buildTimeUtc"),
     "missed_scans": ("missed_scans", "missedScans"),
+    "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
 }
 
 
@@ -69,14 +70,14 @@ def _field_value(data: dict, field: str):
 
 def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | None = None):
     value = _field_value(data, field)
+    if field == "total_dosing_s":
+        return coerce_numeric(value)
+    if field == "next_dose_s":
+        return coerce_numeric(value)
     if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS or field in TEMPERATURE_FIELDS:
         return coerce_numeric(value)
     if field in NUMERIC_FIELDS:
         return coerce_numeric(value)
-    if field == "total_dosing_s":
-        return coerce_numeric(data.get("total_dosing_s"))
-    if field == "next_dose_s":
-        return coerce_numeric(data.get("next_dose_in_s"))
     if field == "total_water_ml" and coordinator is not None:
         return total_water_ml(data.get("total_dosing_s"), coordinator.pump_1_flow_ml_per_s)
     return value

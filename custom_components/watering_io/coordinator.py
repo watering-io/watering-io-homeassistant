@@ -35,6 +35,7 @@ def _first_value(data: dict[str, Any], *keys: str) -> Any:
 @dataclass
 class WateringState:
     availability_online: bool = False
+    availability_seen: bool = False
     device_info: dict[str, Any] = field(default_factory=dict)
     schema: dict[str, Any] = field(default_factory=dict)
     device_status: dict[str, Any] = field(default_factory=dict)
@@ -90,6 +91,17 @@ class WateringIoCoordinator:
 
     @property
     def device_available(self) -> bool:
+        if self.state.availability_seen:
+            return self.state.availability_online
+        if (
+            self.state.device_info
+            or self.state.device_status
+            or self.state.system_status
+            or self.state.pumps_status
+            or self.state.planter_status
+            or self.state.sensor_status
+        ):
+            return True
         return self.state.availability_online
 
     @property
@@ -285,7 +297,8 @@ class WateringIoCoordinator:
 
     @callback
     def _handle_availability(self, msg: ReceiveMessage) -> None:
-        self.state.availability_online = msg.payload == "online"
+        self.state.availability_seen = True
+        self.state.availability_online = str(msg.payload).strip().lower() == "online"
         self._mark_topic_update(msg.topic)
         self._notify()
 
