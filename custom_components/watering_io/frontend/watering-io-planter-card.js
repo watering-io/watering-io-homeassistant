@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.14";
+const CARD_VERSION = "0.1.15";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -236,7 +236,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const wateringLabel = wateringState?.state === "on" ? "Watering" : "Idle";
     const stateLabel = stateText(planterState, "No state");
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
-    const targetEditable = Boolean(targetEditEntity && targetNumberState);
+    const targetEditable = Boolean(targetEditEntity);
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -355,10 +355,13 @@ class WateringIoPlanterCard extends HTMLElement {
         }
 
         .target {
+          align-items: flex-end;
           border: 0;
           background: transparent;
           color: var(--secondary-text-color);
           cursor: default;
+          display: inline-flex;
+          flex-direction: column;
           font-size: 13px;
           font-family: inherit;
           line-height: 1.25;
@@ -384,9 +387,17 @@ class WateringIoPlanterCard extends HTMLElement {
         }
 
         .target strong {
-          display: block;
+          align-items: center;
+          display: inline-flex;
+          gap: 5px;
+          justify-content: flex-end;
           color: var(--primary-text-color);
           font-size: 16px;
+        }
+
+        .target ha-icon {
+          --mdc-icon-size: 15px;
+          color: var(--secondary-text-color);
         }
 
         .bar {
@@ -471,7 +482,10 @@ class WateringIoPlanterCard extends HTMLElement {
             </div>
             <button class="target ${targetEditable ? "editable" : ""}" type="button" aria-label="${targetEditable ? "Edit target moisture" : "Target moisture"}">
               Target
-              <strong>${escapeHtml(formatPercent(target))}</strong>
+              <strong>
+                ${escapeHtml(formatPercent(target))}
+                ${targetEditable ? '<ha-icon icon="mdi:pencil"></ha-icon>' : ""}
+              </strong>
             </button>
           </div>
           <div class="bar" role="img" aria-label="Moisture ${escapeHtml(formatPercent(moisture))}, target ${escapeHtml(formatPercent(target))}">
