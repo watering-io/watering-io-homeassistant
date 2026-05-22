@@ -1,12 +1,15 @@
 {
   "options": {
-    "menu_options": {
-      "pump_calibration": "Pump calibration",
-      "planter_set": "Add or update planter",
-      "planter_delete": "Delete planter",
-      "refresh_planters": "Refresh planter list"
-    },
     "step": {
+      "init": {
+        "title": "Configure Watering.IO Hub",
+        "menu_options": {
+          "pump_calibration": "Pump calibration",
+          "planter_set": "Add or update planter",
+          "planter_delete": "Delete planter",
+          "refresh_planters": "Refresh planter list"
+        }
+      },
       "pump_calibration": {
         "title": "Pump calibration",
         "description": "Set the pump flow used to calculate total water from dosing seconds.",
