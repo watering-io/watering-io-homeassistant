@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.16";
+const CARD_VERSION = "0.1.17";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -115,14 +115,28 @@ function chipClass(base, stateObj, activeState = "on") {
   return stateObj.state === activeState ? `${base} active` : base;
 }
 
-function targetNumberEntity(config) {
+function targetNumberEntity(config, hass) {
   if (config?.target_number_entity) {
     return config.target_number_entity;
   }
-  if (config?.target_entity?.startsWith("sensor.")) {
-    return `number.${config.target_entity.slice("sensor.".length)}`;
+  if (!config?.target_entity?.startsWith("sensor.")) {
+    return undefined;
   }
-  return undefined;
+
+  const sensorSlug = config.target_entity.slice("sensor.".length);
+  const candidates = [`number.${sensorSlug}`];
+  const planterMatch = sensorSlug.match(/(?:^|_)planter_(\d+)(?:_|$)/);
+  if (planterMatch) {
+    candidates.push(`number.planter_${planterMatch[1]}_target_moisture`);
+  }
+
+  for (const candidate of candidates) {
+    if (hass?.states?.[candidate]) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
 }
 
 class WateringIoPlanterCard extends HTMLElement {
@@ -199,7 +213,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const planterState = entityState(this._hass, this.config.state_entity);
-    const targetEditEntity = targetNumberEntity(this.config);
+    const targetEditEntity = targetNumberEntity(this.config, this._hass);
     const targetNumberState = entityState(this._hass, targetEditEntity);
     const renderKey = JSON.stringify([
       this.config.name || "",
@@ -515,7 +529,7 @@ class WateringIoPlanterCard extends HTMLElement {
   }
 
   _openTargetEditor() {
-    const entityId = targetNumberEntity(this.config);
+    const entityId = targetNumberEntity(this.config, this._hass);
     if (!entityId) {
       return;
     }
