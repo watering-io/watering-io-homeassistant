@@ -1,0 +1,23 @@
+set_target_moisture:
+  name: Set planter target moisture
+  description: Update one planter target moisture through the Watering.IO Hub planter config command.
+  fields:
+    planter_id:
+      name: Planter ID
+      description: The planter id to update.
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    target_moisture:
+      name: Target moisture
+      description: New target moisture percentage.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider

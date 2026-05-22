@@ -31,7 +31,7 @@ Entities are created for:
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture/temperature/online diagnostics
 - Sensor rescan button publishing `{}` to `<prefix>/command/sensors/rescan`
-- Per-planter target moisture number entities that publish updates through the planter config command
+- Per-planter target moisture number entities and dashboard edits that publish updates through the planter config command
 
 ## Planter Configuration
 
@@ -46,6 +46,8 @@ The integration publishes planter configuration commands to:
 ```
 
 The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, and `hysteresis` to the hub. The integration also listens for `<prefix>/config/planter/list` and `<prefix>/config/ack` so future UI steps can surface hub feedback.
+
+The integration also exposes the `watering_io.set_target_moisture` service. It accepts `planter_id` and `target_moisture`, preserves the cached planter config values, and publishes the full update to `<prefix>/config/planter/set`.
 
 ## Dosing Measurements
 
@@ -88,9 +90,7 @@ online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
 ```
 
-The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens the native Home Assistant editor for the matching number entity, for example `number.planter_1_target_moisture` for `sensor.planter_1_target_moisture`. Saving a new value publishes the full planter config to `<prefix>/config/planter/set` with only `target_moisture` changed, then refreshes the cached planter config.
-
-If your entity IDs do not follow that matching pattern, you can still override the edit entity in YAML with `target_number_entity`.
+The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor in the card. Saving a new value calls `watering_io.set_target_moisture`, which publishes the full planter config to `<prefix>/config/planter/set` with only `target_moisture` changed, then refreshes the cached planter config.
 
 Available crop presets:
 
@@ -124,7 +124,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.17
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.18
 Resource type: JavaScript module
 ```
 

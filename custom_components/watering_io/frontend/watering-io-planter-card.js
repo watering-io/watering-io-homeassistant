@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.17";
+const CARD_VERSION = "0.1.18";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -115,28 +115,14 @@ function chipClass(base, stateObj, activeState = "on") {
   return stateObj.state === activeState ? `${base} active` : base;
 }
 
-function targetNumberEntity(config, hass) {
-  if (config?.target_number_entity) {
-    return config.target_number_entity;
-  }
+function planterIdFromConfig(config) {
   if (!config?.target_entity?.startsWith("sensor.")) {
     return undefined;
   }
 
   const sensorSlug = config.target_entity.slice("sensor.".length);
-  const candidates = [`number.${sensorSlug}`];
   const planterMatch = sensorSlug.match(/(?:^|_)planter_(\d+)(?:_|$)/);
-  if (planterMatch) {
-    candidates.push(`number.planter_${planterMatch[1]}_target_moisture`);
-  }
-
-  for (const candidate of candidates) {
-    if (hass?.states?.[candidate]) {
-      return candidate;
-    }
-  }
-
-  return candidates[0];
+  return planterMatch?.[1];
 }
 
 class WateringIoPlanterCard extends HTMLElement {
@@ -144,6 +130,10 @@ class WateringIoPlanterCard extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._lastRenderKey = null;
+    this._editingTarget = false;
+    this._targetDraft = null;
+    this._targetError = "";
+    this._targetSubmitting = false;
   }
 
   static getConfigForm() {
@@ -213,8 +203,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const planterState = entityState(this._hass, this.config.state_entity);
-    const targetEditEntity = targetNumberEntity(this.config, this._hass);
-    const targetNumberState = entityState(this._hass, targetEditEntity);
+    const planterId = planterIdFromConfig(this.config);
     const renderKey = JSON.stringify([
       this.config.name || "",
       this.config.crop || "",
@@ -223,14 +212,17 @@ class WateringIoPlanterCard extends HTMLElement {
       moistureState?.attributes?.friendly_name || "",
       this.config.target_entity || "",
       targetState?.state || "",
-      targetEditEntity || "",
-      targetNumberState?.state || "",
+      planterId || "",
       this.config.online_entity || "",
       onlineState?.state || "",
       this.config.watering_entity || "",
       wateringState?.state || "",
       this.config.state_entity || "",
       planterState?.state || "",
+      this._editingTarget ? "editing" : "",
+      this._targetDraft ?? "",
+      this._targetError || "",
+      this._targetSubmitting ? "submitting" : "",
     ]);
     if (!force && renderKey === this._lastRenderKey) {
       return;
@@ -250,7 +242,8 @@ class WateringIoPlanterCard extends HTMLElement {
     const wateringLabel = wateringState?.state === "on" ? "Watering" : "Idle";
     const stateLabel = stateText(planterState, "No state");
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
-    const targetEditable = Boolean(targetEditEntity);
+    const targetEditable = Boolean(planterId);
+    const targetDraft = this._targetDraft ?? target ?? 50;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -472,6 +465,94 @@ class WateringIoPlanterCard extends HTMLElement {
           font-size: 13px;
         }
 
+        .dialog-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+          background: rgba(0, 0, 0, 0.42);
+        }
+
+        .dialog {
+          width: min(360px, 100%);
+          border-radius: 12px;
+          background: var(--ha-card-background, var(--card-background-color, #fff));
+          color: var(--primary-text-color);
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+          padding: 18px;
+        }
+
+        .dialog-title {
+          font-size: 18px;
+          font-weight: 700;
+          line-height: 1.2;
+        }
+
+        .dialog-value {
+          margin: 16px 0 10px;
+          font-size: 34px;
+          font-weight: 760;
+          line-height: 1;
+        }
+
+        .dialog input[type="range"] {
+          width: 100%;
+        }
+
+        .dialog input[type="number"] {
+          box-sizing: border-box;
+          width: 100%;
+          margin-top: 12px;
+          border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.18));
+          border-radius: 8px;
+          background: var(--card-background-color, #fff);
+          color: var(--primary-text-color);
+          font: inherit;
+          padding: 10px;
+        }
+
+        .dialog-error {
+          min-height: 18px;
+          margin-top: 10px;
+          color: var(--error-color, #db4437);
+          font-size: 13px;
+        }
+
+        .dialog-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          margin-top: 18px;
+        }
+
+        .dialog-actions button {
+          border: 0;
+          border-radius: 8px;
+          cursor: pointer;
+          font: inherit;
+          font-weight: 650;
+          min-height: 38px;
+          padding: 0 14px;
+        }
+
+        .dialog-actions .cancel {
+          background: transparent;
+          color: var(--primary-text-color);
+        }
+
+        .dialog-actions .save {
+          background: var(--primary-color);
+          color: var(--text-primary-color, #fff);
+        }
+
+        .dialog-actions button:disabled {
+          cursor: progress;
+          opacity: 0.7;
+        }
+
         @media (max-width: 420px) {
           .content {
             padding: 14px;
@@ -519,6 +600,23 @@ class WateringIoPlanterCard extends HTMLElement {
           </div>
           ${missingRequired ? '<div class="missing">Configure moisture and target entities.</div>' : ""}
         </div>
+        ${
+          this._editingTarget
+            ? `<div class="dialog-backdrop">
+                <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit target moisture">
+                  <div class="dialog-title">Target moisture</div>
+                  <div class="dialog-value">${escapeHtml(formatPercent(targetDraft))}</div>
+                  <input class="target-range" type="range" min="0" max="100" step="1" value="${escapeHtml(targetDraft)}">
+                  <input class="target-input" type="number" min="0" max="100" step="1" value="${escapeHtml(targetDraft)}" aria-label="Target moisture percentage">
+                  <div class="dialog-error">${escapeHtml(this._targetError)}</div>
+                  <div class="dialog-actions">
+                    <button class="cancel" type="button" ${this._targetSubmitting ? "disabled" : ""}>Cancel</button>
+                    <button class="save" type="button" ${this._targetSubmitting ? "disabled" : ""}>Save</button>
+                  </div>
+                </div>
+              </div>`
+            : ""
+        }
       </ha-card>
     `;
 
@@ -526,20 +624,83 @@ class WateringIoPlanterCard extends HTMLElement {
     if (targetButton) {
       targetButton.addEventListener("click", () => this._openTargetEditor());
     }
+    this._attachTargetEditorListeners();
   }
 
   _openTargetEditor() {
-    const entityId = targetNumberEntity(this.config, this._hass);
-    if (!entityId) {
+    if (!planterIdFromConfig(this.config)) {
       return;
     }
-    this.dispatchEvent(
-      new CustomEvent("hass-more-info", {
-        bubbles: true,
-        composed: true,
-        detail: { entityId },
-      })
-    );
+    const target = parsePercent(entityState(this._hass, this.config.target_entity));
+    this._targetDraft = target ?? 50;
+    this._targetError = "";
+    this._editingTarget = true;
+    this._render(true);
+  }
+
+  _attachTargetEditorListeners() {
+    const range = this.shadowRoot.querySelector(".target-range");
+    const input = this.shadowRoot.querySelector(".target-input");
+    const valueLabel = this.shadowRoot.querySelector(".dialog-value");
+    const error = this.shadowRoot.querySelector(".dialog-error");
+    const cancel = this.shadowRoot.querySelector(".dialog-actions .cancel");
+    const save = this.shadowRoot.querySelector(".dialog-actions .save");
+    const updateDraft = (value) => {
+      const number = Number(value);
+      this._targetDraft = Number.isFinite(number) ? clamp(number, 0, 100) : 0;
+      this._targetError = "";
+      if (range) {
+        range.value = this._targetDraft;
+      }
+      if (input) {
+        input.value = this._targetDraft;
+      }
+      if (valueLabel) {
+        valueLabel.textContent = formatPercent(this._targetDraft);
+      }
+      if (error) {
+        error.textContent = "";
+      }
+    };
+
+    if (range) {
+      range.addEventListener("input", (event) => updateDraft(event.target.value));
+    }
+    if (input) {
+      input.addEventListener("input", (event) => updateDraft(event.target.value));
+    }
+    if (cancel) {
+      cancel.addEventListener("click", () => {
+        this._editingTarget = false;
+        this._targetError = "";
+        this._render(true);
+      });
+    }
+    if (save) {
+      save.addEventListener("click", () => this._saveTargetMoisture());
+    }
+  }
+
+  async _saveTargetMoisture() {
+    const planterId = planterIdFromConfig(this.config);
+    if (!this._hass || !planterId) {
+      return;
+    }
+    this._targetSubmitting = true;
+    this._targetError = "";
+    this._render(true);
+    try {
+      await this._hass.callService("watering_io", "set_target_moisture", {
+        planter_id: Number(planterId),
+        target_moisture: Number(this._targetDraft),
+      });
+      this._editingTarget = false;
+    } catch (error) {
+      this._targetError = error?.message || "Could not update target moisture.";
+    } finally {
+      this._targetSubmitting = false;
+      this._render(true);
+    }
   }
 }
 
