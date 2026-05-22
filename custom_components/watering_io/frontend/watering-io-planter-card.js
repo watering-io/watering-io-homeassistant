@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.15";
+const CARD_VERSION = "0.1.16";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -400,6 +400,12 @@ class WateringIoPlanterCard extends HTMLElement {
           color: var(--secondary-text-color);
         }
 
+        .target .edit-label {
+          color: var(--primary-color);
+          font-size: 12px;
+          font-weight: 650;
+        }
+
         .bar {
           position: relative;
           height: 18px;
@@ -484,7 +490,7 @@ class WateringIoPlanterCard extends HTMLElement {
               Target
               <strong>
                 ${escapeHtml(formatPercent(target))}
-                ${targetEditable ? '<ha-icon icon="mdi:pencil"></ha-icon>' : ""}
+                ${targetEditable ? '<span class="edit-label">Edit</span><ha-icon icon="mdi:pencil"></ha-icon>' : ""}
               </strong>
             </button>
           </div>
