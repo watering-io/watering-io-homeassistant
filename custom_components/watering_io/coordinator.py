@@ -40,6 +40,7 @@ class WateringState:
     schema: dict[str, Any] = field(default_factory=dict)
     device_status: dict[str, Any] = field(default_factory=dict)
     system_status: dict[str, Any] = field(default_factory=dict)
+    schedule_status: dict[str, Any] = field(default_factory=dict)
     pumps_status: dict[str, Any] = field(default_factory=dict)
     planter_status: dict[str, dict[str, Any]] = field(default_factory=dict)
     sensor_status: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -97,6 +98,7 @@ class WateringIoCoordinator:
             self.state.device_info
             or self.state.device_status
             or self.state.system_status
+            or self.state.schedule_status
             or self.state.pumps_status
             or self.state.planter_status
             or self.state.sensor_status
@@ -128,6 +130,11 @@ class WateringIoCoordinator:
                 "firmwareVersion",
             ),
         )
+
+    @property
+    def stable_unique_prefix(self) -> str:
+        value = self.entry.unique_id or self.entry.data.get("topic_prefix") or self.prefix
+        return str(value).strip().lower().replace("/", "_")
 
     def planter_unique_id(self, planter_id: str) -> str | None:
         for planter in self.state.schema.get("entities", {}).get("planters", []):
@@ -221,6 +228,7 @@ class WateringIoCoordinator:
             # before schema is received or when schema entity arrays are incomplete.
             (f"{self.prefix}/device/+/status", self._handle_status),
             (f"{self.prefix}/system/status", self._handle_status),
+            (f"{self.prefix}/schedule/status", self._handle_status),
             (f"{self.prefix}/pumps/status", self._handle_status),
             (f"{self.prefix}/planter/+/status", self._handle_status),
             (f"{self.prefix}/planter/+/event/watering", self._handle_watering_event),
@@ -234,6 +242,7 @@ class WateringIoCoordinator:
         for keys in (
             ("device_status", "deviceStatus"),
             ("system_status", "systemStatus"),
+            ("schedule_status", "scheduleStatus"),
             ("pumps_status", "pumpsStatus"),
         ):
             topic = _first_value(topics, *keys)
@@ -339,6 +348,11 @@ class WateringIoCoordinator:
             or msg.topic == f"{self.prefix}/system/status"
         ):
             self.state.system_status = data
+        elif (
+            msg.topic == _first_value(topics, "schedule_status", "scheduleStatus")
+            or msg.topic == f"{self.prefix}/schedule/status"
+        ):
+            self.state.schedule_status = data
         elif msg.topic == _first_value(topics, "device_status", "deviceStatus") or (
             f"{self.prefix}/device/" in msg.topic and msg.topic.endswith("/status")
         ):

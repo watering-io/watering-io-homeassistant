@@ -14,6 +14,7 @@ from .helpers import (
     coerce_numeric,
     extract_planter_id,
     extract_sensor_id,
+    nested_value,
     total_water_ml,
 )
 
@@ -31,6 +32,20 @@ PLANTER_DOSING_FIELDS = [
     "total_dosing_s",
     "total_water_ml",
 ]
+SCHEDULE_SENSOR_FIELDS = [
+    ("schedule_phase", "Schedule phase", ("phase",)),
+    ("schedule_local_date", "Schedule local date", ("local_date",)),
+    ("schedule_night_start", "Schedule night start", ("schedule", "night_start")),
+    ("schedule_drydown_start", "Schedule drydown start", ("schedule", "drydown_start")),
+    ("schedule_fertilizer_start", "Schedule fertilizer start", ("schedule", "fertilizer_start")),
+    ("schedule_normal_start", "Schedule normal start", ("schedule", "normal_start")),
+    ("fertilizer_state", "Fertilizer state", ("fertilizer", "state")),
+    ("fertilizer_last_run_date", "Fertilizer last run date", ("fertilizer", "last_run_date")),
+    ("fertilizer_current_planter_id", "Fertilizer current planter ID", ("fertilizer", "current_planter_id")),
+    ("fertilizer_completed_count", "Fertilizer completed count", ("fertilizer", "completed_count")),
+    ("fertilizer_skipped_count", "Fertilizer skipped count", ("fertilizer", "skipped_count")),
+    ("fertilizer_last_error", "Fertilizer last error", ("fertilizer", "last_error")),
+]
 PLANTER_FIELDS = [
     "moisture",
     "target_moisture",
@@ -46,6 +61,11 @@ TEMPERATURE_FIELDS = {"temperature"}
 DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 NUMERIC_FIELDS = {"bus_current", "last_seen_s", "missed_scans", *DURATION_FIELDS}
+SCHEDULE_NUMERIC_FIELDS = {
+    "fertilizer_current_planter_id",
+    "fertilizer_completed_count",
+    "fertilizer_skipped_count",
+}
 
 FIELD_ALIASES = {
     "uptime_s": ("uptime_s", "uptime"),
@@ -114,7 +134,15 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([WateringSystemSensor(coordinator, f) for f in SYSTEM_FIELDS])
+    async_add_entities(
+        [
+            *[WateringSystemSensor(coordinator, f) for f in SYSTEM_FIELDS],
+            *[
+                WateringScheduleSensor(coordinator, unique_suffix, name, path)
+                for unique_suffix, name, path in SCHEDULE_SENSOR_FIELDS
+            ],
+        ]
+    )
 
     added_planters: set[str] = set()
     added_sensors: set[str] = set()
@@ -170,6 +198,28 @@ class WateringSystemSensor(WateringEntity, SensorEntity):
     @property
     def native_value(self):
         return _status_value(self.coordinator.state.system_status, self.field, self.coordinator)
+
+
+class WateringScheduleSensor(WateringEntity, SensorEntity):
+    def __init__(
+        self,
+        coordinator: WateringIoCoordinator,
+        unique_suffix: str,
+        name: str,
+        path: tuple[str, ...],
+    ) -> None:
+        super().__init__(coordinator)
+        self.unique_suffix = unique_suffix
+        self.path = path
+        self._attr_name = name
+        self._attr_unique_id = f"{coordinator.stable_unique_prefix}_{unique_suffix}"
+
+    @property
+    def native_value(self):
+        value = nested_value(self.coordinator.state.schedule_status, self.path)
+        if self.unique_suffix in SCHEDULE_NUMERIC_FIELDS:
+            return coerce_numeric(value)
+        return value
 
 
 class WateringPlanterSensor(WateringPlanterEntity, SensorEntity):

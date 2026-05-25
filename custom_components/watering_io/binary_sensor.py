@@ -9,7 +9,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN
 from .coordinator import SIGNAL_UPDATE, WateringIoCoordinator
 from .entity import WateringEntity, WateringPlanterEntity
-from .helpers import extract_planter_id, extract_sensor_id
+from .helpers import coerce_bool, extract_planter_id, extract_sensor_id, nested_value
+
+SCHEDULE_BINARY_FIELDS = [
+    ("schedule_enabled", "Schedule enabled", ("enabled",)),
+    ("schedule_auto_moisture_allowed", "Schedule auto moisture allowed", ("auto_moisture_allowed",)),
+    ("schedule_time_synced", "Schedule time synced", ("time_synced",)),
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -19,6 +25,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             PumpBinarySensor(coordinator, "pump_a", "pump_a", "pumpA"),
             PumpBinarySensor(coordinator, "pump_b", "pump_b", "pumpB"),
             PumpBinarySensor(coordinator, "any_on", "pump_any", "anyOn"),
+            *[
+                ScheduleBinarySensor(coordinator, unique_suffix, name, path)
+                for unique_suffix, name, path in SCHEDULE_BINARY_FIELDS
+            ],
         ]
     )
 
@@ -94,6 +104,24 @@ class PumpBinarySensor(WateringEntity, BinarySensorEntity):
                 self.coordinator.state.pumps_status.get(self.legacy_field, False),
             )
         )
+
+
+class ScheduleBinarySensor(WateringEntity, BinarySensorEntity):
+    def __init__(
+        self,
+        coordinator: WateringIoCoordinator,
+        unique_suffix: str,
+        name: str,
+        path: tuple[str, ...],
+    ) -> None:
+        super().__init__(coordinator)
+        self.path = path
+        self._attr_name = name
+        self._attr_unique_id = f"{coordinator.stable_unique_prefix}_{unique_suffix}"
+
+    @property
+    def is_on(self):
+        return coerce_bool(nested_value(self.coordinator.state.schedule_status, self.path))
 
 
 class PlanterBinarySensor(WateringPlanterEntity, BinarySensorEntity):

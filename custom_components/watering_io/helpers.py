@@ -35,6 +35,34 @@ def coerce_numeric(value: Any) -> int | float | None:
     return None
 
 
+def coerce_bool(value: Any) -> bool | None:
+    """Return a boolean value from payload data, or None if not boolean-like."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"1", "true", "on", "yes"}:
+            return True
+        if text in {"0", "false", "off", "no"}:
+            return False
+        return None
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return None
+
+
+def nested_value(data: Any, path: tuple[str, ...]) -> Any:
+    """Read a nested dict value using a tuple path."""
+    current = data
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
 def total_water_ml(total_dosing_s: Any, pump_flow_ml_per_s: Any) -> int | float | None:
     """Calculate total pumped water from dosing time and pump flow."""
     total_seconds = coerce_numeric(total_dosing_s)

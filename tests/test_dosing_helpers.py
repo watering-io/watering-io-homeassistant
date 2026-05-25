@@ -53,6 +53,21 @@ class DosingHelperTests(unittest.TestCase):
 
         self.assertEqual(helpers.coerce_numeric(payload["temperature"]), 21)
 
+    def test_schedule_status_nested_values(self) -> None:
+        payload = {
+            "schedule": {"night_start": "21:00"},
+            "fertilizer": {"completed_count": 2},
+        }
+
+        self.assertEqual(helpers.nested_value(payload, ("schedule", "night_start")), "21:00")
+        self.assertEqual(helpers.nested_value(payload, ("fertilizer", "completed_count")), 2)
+        self.assertIsNone(helpers.nested_value(payload, ("fertilizer", "last_error")))
+
+    def test_schedule_boolean_payload_values(self) -> None:
+        self.assertTrue(helpers.coerce_bool(True))
+        self.assertFalse(helpers.coerce_bool("false"))
+        self.assertIsNone(helpers.coerce_bool("not-a-bool"))
+
     def test_extract_planter_unique_id_from_schema(self) -> None:
         self.assertEqual(
             helpers.extract_planter_unique_id({"unique_id": "watering-001122334455_planter_3"}),

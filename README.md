@@ -10,7 +10,7 @@
 6. Go to **Settings > Devices & services > Add integration** and add **Watering.IO Hub**.
 7. Enter the MQTT topic prefix. The default is `watering.io`.
 
-> Important: your hub must publish retained messages to `<prefix>/device/availability`, `<prefix>/device/info`, and `<prefix>/integration/schema`.
+> Important: your hub must publish retained messages to `<prefix>/device/availability`, `<prefix>/device/info`, `<prefix>/integration/schema`, and `<prefix>/schedule/status`.
 
 ## MQTT Contract Integration
 
@@ -21,11 +21,14 @@ The integration subscribes to:
 - `<prefix>/device/availability`
 - `<prefix>/device/info`
 - `<prefix>/integration/schema`
+- `<prefix>/schedule/status`
 - schema-derived status topics for system, pumps, planters, and sensors
 
 Entities are created for:
 
 - System sensors: uptime, Wi-Fi RSSI, bus current, firmware/build diagnostics
+- Schedule status sensors: phase, local date, schedule start times, and fertilizer run details
+- Schedule binary sensors: schedule enabled, automatic moisture allowed, and time synced
 - Pump binary sensors
 - Per-planter sensors and binary sensors
 - Per-planter dosing sensors for total dosing time and calculated total water
