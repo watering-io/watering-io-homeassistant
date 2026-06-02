@@ -17,6 +17,16 @@ def extract_planter_id(item: Any) -> str | None:
     return text or None
 
 
+def extract_hub_id_from_topic(topic_prefix: str, topic: str) -> str | None:
+    """Extract a V2 hub id from a Watering.IO hub topic."""
+    hub_prefix = f"{topic_prefix.rstrip('/')}/hubs/"
+    if not topic.startswith(hub_prefix):
+        return None
+    suffix = topic[len(hub_prefix) :]
+    hub_id = suffix.split("/", 1)[0].strip()
+    return hub_id or None
+
+
 def coerce_numeric(value: Any) -> int | float | None:
     """Return a numeric value from payload data, or None if not numeric."""
     if value is None or isinstance(value, bool):
@@ -81,17 +91,6 @@ def extract_sensor_id(item: Any) -> str | None:
         value = item.get("sensor_modbus_id", item.get("sensorModbusId"))
     else:
         value = item
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def extract_planter_unique_id(item: Any) -> str | None:
-    """Extract a planter namespace unique id from schema data."""
-    if not isinstance(item, dict):
-        return None
-    value = item.get("unique_id")
     if value is None:
         return None
     text = str(value).strip()

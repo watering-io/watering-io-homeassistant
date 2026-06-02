@@ -20,24 +20,30 @@ SCHEDULE_BINARY_FIELDS = [
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        [
-            PumpBinarySensor(coordinator, "pump_a", "pump_a", "pumpA"),
-            PumpBinarySensor(coordinator, "pump_b", "pump_b", "pumpB"),
-            PumpBinarySensor(coordinator, "any_on", "pump_any", "anyOn"),
-            *[
-                ScheduleBinarySensor(coordinator, unique_suffix, name, path)
-                for unique_suffix, name, path in SCHEDULE_BINARY_FIELDS
-            ],
-        ]
-    )
-
+    static_added = False
     added_planters: set[str] = set()
     added_sensors: set[str] = set()
 
     @callback
     def add_dynamic() -> None:
+        nonlocal static_added
+        if not coordinator.hub_id_available:
+            return
+
         new_entities = []
+        if not static_added:
+            new_entities.extend(
+                [
+                    PumpBinarySensor(coordinator, "pump_a", "pump_a"),
+                    PumpBinarySensor(coordinator, "pump_b", "pump_b"),
+                    PumpBinarySensor(coordinator, "any_on", "pump_any"),
+                    *[
+                        ScheduleBinarySensor(coordinator, unique_suffix, name, path)
+                        for unique_suffix, name, path in SCHEDULE_BINARY_FIELDS
+                    ],
+                ]
+            )
+            static_added = True
 
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
@@ -88,22 +94,15 @@ class PumpBinarySensor(WateringEntity, BinarySensorEntity):
         coordinator: WateringIoCoordinator,
         field: str,
         suffix: str,
-        legacy_field: str | None = None,
     ) -> None:
         super().__init__(coordinator)
         self.field = field
-        self.legacy_field = legacy_field
         self._attr_name = suffix
-        self._attr_unique_id = f"{coordinator.device_id}_{suffix}"
+        self._attr_unique_id = f"{coordinator.stable_unique_prefix}_{suffix}"
 
     @property
     def is_on(self):
-        return bool(
-            self.coordinator.state.pumps_status.get(
-                self.field,
-                self.coordinator.state.pumps_status.get(self.legacy_field, False),
-            )
-        )
+        return bool(self.coordinator.state.pumps_status.get(self.field, False))
 
 
 class ScheduleBinarySensor(WateringEntity, BinarySensorEntity):
@@ -141,7 +140,7 @@ class SensorOnlineBinarySensor(WateringEntity, BinarySensorEntity):
         super().__init__(coordinator)
         self.sensor_id = sensor_id
         self._attr_name = f"Sensor {sensor_id} online"
-        self._attr_unique_id = f"{coordinator.device_id}_sensor_{sensor_id}_online"
+        self._attr_unique_id = coordinator.sensor_unique_id(sensor_id, "online")
 
     @property
     def is_on(self):

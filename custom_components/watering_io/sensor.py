@@ -134,22 +134,29 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        [
-            *[WateringSystemSensor(coordinator, f) for f in SYSTEM_FIELDS],
-            *[
-                WateringScheduleSensor(coordinator, unique_suffix, name, path)
-                for unique_suffix, name, path in SCHEDULE_SENSOR_FIELDS
-            ],
-        ]
-    )
-
+    static_added = False
     added_planters: set[str] = set()
     added_sensors: set[str] = set()
 
     @callback
     def add_dynamic() -> None:
+        nonlocal static_added
+        if not coordinator.hub_id_available:
+            return
+
         new_entities = []
+        if not static_added:
+            new_entities.extend(
+                [
+                    *[WateringSystemSensor(coordinator, f) for f in SYSTEM_FIELDS],
+                    *[
+                        WateringScheduleSensor(coordinator, unique_suffix, name, path)
+                        for unique_suffix, name, path in SCHEDULE_SENSOR_FIELDS
+                    ],
+                ]
+            )
+            static_added = True
+
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
             if not planter_id or planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
@@ -192,7 +199,7 @@ class WateringSystemSensor(WateringEntity, SensorEntity):
         super().__init__(coordinator)
         self.field = field
         self._attr_name = field
-        self._attr_unique_id = f"{coordinator.device_id}_system_{field}"
+        self._attr_unique_id = f"{coordinator.stable_unique_prefix}_system_{field}"
         _set_field_metadata(self, field)
 
     @property
@@ -217,6 +224,8 @@ class WateringScheduleSensor(WateringEntity, SensorEntity):
     @property
     def native_value(self):
         value = nested_value(self.coordinator.state.schedule_status, self.path)
+        if value is None and self.unique_suffix.startswith("fertilizer_"):
+            value = nested_value(self.coordinator.state.fertilizer_status, self.path[1:])
         if self.unique_suffix in SCHEDULE_NUMERIC_FIELDS:
             return coerce_numeric(value)
         return value
@@ -241,7 +250,7 @@ class WateringDynamicSensor(WateringEntity, SensorEntity):
         self.sensor_id = sensor_id
         self.field = field
         self._attr_name = f"Sensor {sensor_id} {field}"
-        self._attr_unique_id = f"{coordinator.device_id}_sensor_{sensor_id}_{field}"
+        self._attr_unique_id = coordinator.sensor_unique_id(sensor_id, field)
         _set_field_metadata(self, field)
 
     @property

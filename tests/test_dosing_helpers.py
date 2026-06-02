@@ -23,6 +23,7 @@ helpers = load_module("watering_io_helpers", "custom_components/watering_io/help
 class DosingHelperTests(unittest.TestCase):
     def test_new_planter_status_payload_dosing_fields(self) -> None:
         payload = {
+            "hub_id": "greenhouse",
             "device_id": "watering-001122334455",
             "planter_id": 3,
             "moisture": 42,
@@ -68,10 +69,15 @@ class DosingHelperTests(unittest.TestCase):
         self.assertFalse(helpers.coerce_bool("false"))
         self.assertIsNone(helpers.coerce_bool("not-a-bool"))
 
-    def test_extract_planter_unique_id_from_schema(self) -> None:
+    def test_extract_hub_id_from_schema_v2_topic(self) -> None:
         self.assertEqual(
-            helpers.extract_planter_unique_id({"unique_id": "watering-001122334455_planter_3"}),
-            "watering-001122334455_planter_3",
+            helpers.extract_hub_id_from_topic("watering.io", "watering.io/hubs/greenhouse/schema"),
+            "greenhouse",
+        )
+
+    def test_non_hub_topics_do_not_extract_hub_id(self) -> None:
+        self.assertIsNone(
+            helpers.extract_hub_id_from_topic("watering.io", "watering.io/other/info")
         )
 
     def test_total_water_uses_default_pump_flow(self) -> None:

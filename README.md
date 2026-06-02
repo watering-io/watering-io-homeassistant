@@ -8,21 +8,42 @@
 4. Search for **Watering.IO Hub** and install it.
 5. Restart Home Assistant.
 6. Go to **Settings > Devices & services > Add integration** and add **Watering.IO Hub**.
-7. Enter the MQTT topic prefix. The default is `watering.io`.
+7. Enter the MQTT root prefix. The default is `watering.io`.
 
-> Important: your hub must publish retained messages to `<prefix>/device/availability`, `<prefix>/device/info`, `<prefix>/integration/schema`, and `<prefix>/schedule/status`.
+> Important: schema V2 uses `<prefix>/hubs/<hub_id>/...`. The integration discovers a hub from retained `<prefix>/hubs/+/schema` or `<prefix>/hubs/+/info` messages, then uses `hub_id` as the Home Assistant identity.
 
 ## MQTT Contract Integration
 
 This repository contains a custom Home Assistant integration (`custom_components/watering_io`) that consumes the Watering.IO Hub MQTT firmware contract directly, without Home Assistant MQTT Discovery.
 
-The integration subscribes to:
+Use these placeholders throughout the docs:
 
-- `<prefix>/device/availability`
-- `<prefix>/device/info`
-- `<prefix>/integration/schema`
-- `<prefix>/schedule/status`
-- schema-derived status topics for system, pumps, planters, and sensors
+- `<prefix>`: MQTT root, usually `watering.io`
+- `<hub_id>`: logical Home Assistant hub identity
+- `<root>`: `<prefix>/hubs/<hub_id>`
+
+The integration subscribes to these retained topics:
+
+- `<prefix>/hubs/+/schema`
+- `<prefix>/hubs/+/info`
+- `<root>/availability`
+- `<root>/config/schedule`
+- `<root>/config/fertilizer`
+- `<root>/config/planters`
+- `<root>/status/system`
+- `<root>/status/schedule`
+- `<root>/status/pumps`
+- `<root>/status/fertilizer`
+- `<root>/status/sensors`
+- `<root>/planters/<planter_id>/status`
+- `<root>/sensors/<sensor_modbus_id>/status`
+
+The integration also listens for V2 event and ack topics:
+
+- `<root>/planters/<planter_id>/events/watering`
+- `<root>/events/manual_dosing_unassigned`
+- `<root>/events/fertilizer/move`
+- `<root>/ack/#`
 
 Entities are created for:
 
@@ -33,8 +54,13 @@ Entities are created for:
 - Per-planter sensors and binary sensors
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture/temperature/online diagnostics
-- Sensor rescan button publishing `{}` to `<prefix>/command/sensors/rescan`
+- Sensor rescan button publishing `{}` to `<root>/cmd/sensors/rescan`
 - Per-planter target moisture number entities and dashboard edits that publish updates through the planter config command
+
+Home Assistant device identifiers use `("watering_io", hub_id)`. ESP32 `device_id` values are treated as firmware metadata and are not used for entity unique IDs. Planter and sensor unique IDs are based on:
+
+- Planters: `<hub_id>_planter_<planter_id>_<metric>`
+- Sensors: `<hub_id>_sensor_<sensor_modbus_id>_<metric>`
 
 ## Planter Configuration
 
@@ -43,27 +69,27 @@ Planters can be added, updated, or deleted from **Settings > Devices & services 
 The integration publishes planter configuration commands to:
 
 ```text
-<prefix>/config/planter/set
-<prefix>/config/planter/delete
-<prefix>/config/planter/get
+<root>/cmd/config/planters/set
+<root>/cmd/config/planters/delete
+<root>/cmd/config/planters/get
 ```
 
-The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, and `hysteresis` to the hub. The integration also listens for `<prefix>/config/planter/list` and `<prefix>/config/ack` so future UI steps can surface hub feedback.
+The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, and `hysteresis` to the hub. The integration keeps its planter cache from retained `<root>/config/planters` and stores the latest ack received below `<root>/ack/#`.
 
-The integration also exposes the `watering_io.set_target_moisture` service. It accepts `planter_id` and `target_moisture`, preserves the cached planter config values, and publishes the full update to `<prefix>/config/planter/set`.
+The integration also exposes the `watering_io.set_target_moisture` service. It accepts `planter_id` and `target_moisture`, preserves the cached planter config values, and publishes the full update to `<root>/cmd/config/planters/set`.
 
 ## Dosing Measurements
 
 For each planter, the integration reads retained dosing values from:
 
 ```text
-<prefix>/planter/<planter_id>/status
+<root>/planters/<planter_id>/status
 ```
 
 Supported dosing fields:
 
-- `total_dosing_s` -> `sensor.planter_<id>_total_dosing_s`
-- `total_dosing_s` plus pump calibration -> `sensor.planter_<id>_total_water_ml`
+- `total_dosing_s` -> planter metric `total_dosing_s`
+- `total_dosing_s` plus pump calibration -> planter metric `total_water_ml`
 
 `total_dosing_s` and `total_water_ml` are exposed as `total_increasing` sensors so they can be used with Home Assistant `utility_meter` helpers for daily, monthly, or seasonal totals.
 
@@ -75,7 +101,7 @@ pump_1_flow_ml_per_s
 
 The default is `1.0 mL/s`.
 
-Watering event messages from `<prefix>/planter/<planter_id>/event/watering` are logged at debug level only. They are not used for aggregation, so reconnects and retained status messages remain the source of truth for statistics.
+Watering event messages from `<root>/planters/<planter_id>/events/watering` are logged at debug level only. They are not used for aggregation, so reconnects and retained status messages remain the source of truth for statistics.
 
 Current firmware no longer publishes legacy dosing fields such as `total_dosing_ms`, `duration_ms`, `last_dosing_ms`, `last_dosing_unix`, or `last_event_id`. If those old entities remain in Home Assistant after updating, remove the stale entity registry entries once.
 
@@ -93,7 +119,7 @@ online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
 ```
 
-The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor in the card. Saving a new value calls `watering_io.set_target_moisture`, which publishes the full planter config to `<prefix>/config/planter/set` with only `target_moisture` changed, then refreshes the cached planter config.
+The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor in the card. Saving a new value calls `watering_io.set_target_moisture`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only `target_moisture` changed, then refreshes the cached planter config.
 
 Available crop presets:
 

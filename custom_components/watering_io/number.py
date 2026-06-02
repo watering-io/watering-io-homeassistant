@@ -39,7 +39,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_UPDATE, add_dynamic))
     add_dynamic()
-    await coordinator.async_publish_planter_get()
+    if coordinator.hub_id_available:
+        await coordinator.async_publish_planter_get()
 
 
 class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):
