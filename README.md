@@ -47,7 +47,7 @@ The integration also listens for V2 event and ack topics:
 
 Entities are created for:
 
-- System sensors: uptime, Wi-Fi RSSI, bus current, firmware/build diagnostics
+- System sensors: uptime, Wi-Fi RSSI, bus current, input current, firmware/build diagnostics
 - Schedule status sensors: phase, local date, schedule start times, and fertilizer run details
 - Schedule binary sensors: schedule enabled, automatic moisture allowed, and time synced
 - Pump binary sensors

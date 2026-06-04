@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -22,6 +27,7 @@ SYSTEM_FIELDS = [
     "uptime_s",
     "wifi_rssi",
     "bus_current",
+    "input_current",
     "firmware_version",
     "build_git",
     "build_commit",
@@ -58,9 +64,10 @@ SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missed_scans"]
 PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
 SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
+CURRENT_FIELDS = {"bus_current", "input_current"}
 DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
-NUMERIC_FIELDS = {"bus_current", "last_seen_s", "missed_scans", *DURATION_FIELDS}
+NUMERIC_FIELDS = {"last_seen_s", "missed_scans", *CURRENT_FIELDS, *DURATION_FIELDS}
 SCHEDULE_NUMERIC_FIELDS = {
     "fertilizer_current_planter_id",
     "fertilizer_completed_count",
@@ -71,6 +78,7 @@ FIELD_ALIASES = {
     "uptime_s": ("uptime_s", "uptime"),
     "wifi_rssi": ("wifi_rssi", "wifiRssi"),
     "bus_current": ("bus_current", "busCurrent"),
+    "input_current": ("input_current", "inputCurrent"),
     "firmware_version": ("firmware_version", "firmwareVersion"),
     "build_git": ("build_git", "buildGit"),
     "build_commit": ("build_commit", "buildCommit"),
@@ -115,6 +123,10 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
     elif field in TEMPERATURE_FIELDS:
         entity._attr_device_class = SensorDeviceClass.TEMPERATURE
         entity._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        entity._attr_state_class = SensorStateClass.MEASUREMENT
+    elif field in CURRENT_FIELDS:
+        entity._attr_device_class = SensorDeviceClass.CURRENT
+        entity._attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
         entity._attr_state_class = SensorStateClass.MEASUREMENT
     elif field in DURATION_FIELDS:
         duration_device_class = getattr(SensorDeviceClass, "DURATION", None)
