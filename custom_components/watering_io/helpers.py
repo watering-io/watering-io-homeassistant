@@ -103,6 +103,7 @@ def _config_value(config: dict[str, Any], key: str) -> Any:
         "sensor_modbus_id": ("sensor_modbus_id", "sensorModbusId"),
         "valve_route": ("valve_route", "valveRoute"),
         "target_moisture": ("target_moisture", "targetMoisture"),
+        "fertilizer_steps": ("fertilizer_steps", "fertilizerSteps"),
     }
     for alias in aliases.get(key, (key,)):
         if config.get(alias) is not None:
@@ -110,24 +111,37 @@ def _config_value(config: dict[str, Any], key: str) -> Any:
     return None
 
 
-def planter_config_set_payload(config: dict[str, Any], target_moisture: float) -> dict[str, Any]:
-    """Build a complete planter set payload with an updated target moisture."""
+def planter_config_set_payload(
+    config: dict[str, Any],
+    target_moisture: float | None = None,
+    fertilizer_steps: int | None = None,
+) -> dict[str, Any]:
+    """Build a planter set payload with selected values updated."""
     required_keys = (
         "planter_id",
         "enabled",
         "sensor_modbus_id",
         "valve_route",
+        "target_moisture",
         "hysteresis",
     )
     missing = [key for key in required_keys if _config_value(config, key) is None]
     if missing:
         raise ValueError(f"Missing planter config field(s): {', '.join(missing)}")
 
-    return {
+    payload = {
         "planter_id": int(_config_value(config, "planter_id")),
         "enabled": bool(_config_value(config, "enabled")),
         "sensor_modbus_id": int(_config_value(config, "sensor_modbus_id")),
         "valve_route": int(_config_value(config, "valve_route")),
-        "target_moisture": float(target_moisture),
+        "target_moisture": float(
+            target_moisture if target_moisture is not None else _config_value(config, "target_moisture")
+        ),
         "hysteresis": float(_config_value(config, "hysteresis")),
     }
+    fertilizer_value = (
+        fertilizer_steps if fertilizer_steps is not None else _config_value(config, "fertilizer_steps")
+    )
+    if fertilizer_value is not None:
+        payload["fertilizer_steps"] = int(fertilizer_value)
+    return payload

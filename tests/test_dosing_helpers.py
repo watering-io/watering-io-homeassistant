@@ -111,6 +111,7 @@ class DosingHelperTests(unittest.TestCase):
             "sensor_modbus_id": 1,
             "valve_route": 5,
             "target_moisture": 45.0,
+            "fertilizer_steps": 120,
             "hysteresis": 4.0,
         }
 
@@ -122,6 +123,31 @@ class DosingHelperTests(unittest.TestCase):
                 "sensor_modbus_id": 1,
                 "valve_route": 5,
                 "target_moisture": 52.0,
+                "fertilizer_steps": 120,
+                "hysteresis": 4.0,
+            },
+        )
+
+    def test_planter_config_set_payload_updates_only_fertilizer_steps(self) -> None:
+        config = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 120,
+            "hysteresis": 4.0,
+        }
+
+        self.assertEqual(
+            helpers.planter_config_set_payload(config, fertilizer_steps=180),
+            {
+                "planter_id": 3,
+                "enabled": True,
+                "sensor_modbus_id": 1,
+                "valve_route": 5,
+                "target_moisture": 45.0,
+                "fertilizer_steps": 180,
                 "hysteresis": 4.0,
             },
         )
@@ -145,6 +171,7 @@ class DosingHelperTests(unittest.TestCase):
             "sensorModbusId": 1,
             "valveRoute": 5,
             "targetMoisture": 45.0,
+            "fertilizerSteps": 120,
             "hysteresis": 4.0,
         }
 
@@ -156,6 +183,7 @@ class DosingHelperTests(unittest.TestCase):
                 "sensor_modbus_id": 1,
                 "valve_route": 5,
                 "target_moisture": 52.0,
+                "fertilizer_steps": 120,
                 "hysteresis": 4.0,
             },
         )

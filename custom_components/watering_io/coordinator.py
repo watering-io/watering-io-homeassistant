@@ -67,6 +67,16 @@ def _items_from_payload(data: Any, *keys: str) -> list[Any]:
     return []
 
 
+def _hub_device_name(base_name: Any, hub_id: str) -> str:
+    """Return a hub device name that exposes the logical hub id."""
+    name = str(base_name or f"Watering.IO Hub {hub_id}").strip()
+    if not name:
+        name = f"Watering.IO Hub {hub_id}"
+    if hub_id and hub_id != "unknown" and hub_id.lower() not in name.lower():
+        return f"{name} ({hub_id})"
+    return name
+
+
 @dataclass
 class WateringState:
     hub_id: str | None = None
@@ -168,9 +178,10 @@ class WateringIoCoordinator:
         hub_id = self.hub_id or "unknown"
         return DeviceInfo(
             identifiers={(DOMAIN, hub_id)},
-            name=self.state.device_info.get("name") or f"Watering.IO Hub {hub_id}",
+            name=_hub_device_name(self.state.device_info.get("name"), hub_id),
             manufacturer="Watering.IO",
             model=self.state.device_info.get("model", "Watering.IO Hub"),
+            serial_number=hub_id if hub_id != "unknown" else None,
             sw_version=_first_value(
                 self.state.device_info,
                 "firmware_version",
@@ -228,6 +239,7 @@ class WateringIoCoordinator:
         valve_route: int,
         target_moisture: float,
         hysteresis: float,
+        fertilizer_steps: int | None = None,
     ) -> None:
         payload = {
             "planter_id": planter_id,
@@ -237,6 +249,8 @@ class WateringIoCoordinator:
             "target_moisture": target_moisture,
             "hysteresis": hysteresis,
         }
+        if fertilizer_steps is not None:
+            payload["fertilizer_steps"] = fertilizer_steps
         await self._publish_json(f"{self._hub_root_required()}/cmd/config/planters/set", payload)
 
     async def async_publish_planter_delete(self, planter_id: int) -> None:
@@ -461,8 +475,9 @@ class WateringIoCoordinator:
         registry.async_get_or_create(
             config_entry_id=self.entry.entry_id,
             identifiers={(DOMAIN, self.hub_id)},
-            name=self.state.device_info.get("name") or f"Watering.IO Hub {self.hub_id}",
+            name=_hub_device_name(self.state.device_info.get("name"), self.hub_id),
             model=self.state.device_info.get("model", "Watering.IO Hub"),
+            serial_number=self.hub_id,
             sw_version=_first_value(
                 self.state.device_info,
                 "firmware_version",

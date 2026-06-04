@@ -26,6 +26,7 @@
           "sensor_modbus_id": "Sensor Modbus ID",
           "valve_route": "Valve route",
           "target_moisture": "Target moisture (%)",
+          "fertilizer_steps": "Fertilizer steps",
           "hysteresis": "Hysteresis (%)"
         }
       },

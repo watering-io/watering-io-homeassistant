@@ -32,7 +32,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             if planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
-            new_entities.append(PlanterTargetMoistureNumber(coordinator, planter_id))
+            new_entities.extend(
+                [
+                    PlanterTargetMoistureNumber(coordinator, planter_id),
+                    PlanterFertilizerStepsNumber(coordinator, planter_id),
+                ]
+            )
 
         if new_entities:
             async_add_entities(new_entities)
@@ -91,6 +96,58 @@ class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):
             return False
         try:
             planter_config_set_payload(config, self.native_value or 0)
+        except (TypeError, ValueError):
+            return False
+        return True
+
+
+class PlanterFertilizerStepsNumber(WateringPlanterEntity, NumberEntity):
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100000
+    _attr_native_step = 1
+
+    def __init__(self, coordinator: WateringIoCoordinator, planter_id: str) -> None:
+        super().__init__(coordinator, planter_id)
+        self._attr_name = "Fertilizer steps"
+        self._attr_unique_id = f"{self.planter_unique_id}_fertilizer_steps_number"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._config_payload_available()
+
+    @property
+    def native_value(self) -> int | None:
+        planter_config = self.coordinator.state.planter_configs.get(self.planter_id, {})
+        config_value = planter_config.get("fertilizer_steps", planter_config.get("fertilizerSteps"))
+        if config_value is None:
+            config_value = self.coordinator.state.planter_status.get(self.planter_id, {}).get("fertilizer_steps")
+        value = coerce_numeric(config_value)
+        if value is None:
+            return None
+        return int(value)
+
+    async def async_set_native_value(self, value: float) -> None:
+        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        if not config:
+            raise HomeAssistantError(
+                f"Planter {self.planter_id} config is not loaded; refresh planter list before editing fertilizer steps"
+            )
+
+        try:
+            payload = planter_config_set_payload(config, fertilizer_steps=int(value))
+        except (TypeError, ValueError) as err:
+            raise HomeAssistantError(f"Planter {self.planter_id} config is incomplete: {err}") from err
+
+        await self.coordinator.async_publish_planter_set(**payload)
+        await self.coordinator.async_publish_planter_get()
+
+    def _config_payload_available(self) -> bool:
+        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        if not config:
+            return False
+        try:
+            planter_config_set_payload(config, fertilizer_steps=self.native_value or 0)
         except (TypeError, ValueError):
             return False
         return True

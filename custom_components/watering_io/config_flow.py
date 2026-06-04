@@ -16,6 +16,7 @@ from .const import (
 from .coordinator import WateringIoCoordinator
 
 CONF_ENABLED = "enabled"
+CONF_FERTILIZER_STEPS = "fertilizer_steps"
 CONF_HYSTERESIS = "hysteresis"
 CONF_PLANTER_ID = "planter_id"
 CONF_SENSOR_MODBUS_ID = "sensor_modbus_id"
@@ -100,6 +101,7 @@ class WateringIoOptionsFlow(config_entries.OptionsFlow):
                     valve_route=user_input[CONF_VALVE_ROUTE],
                     target_moisture=user_input[CONF_TARGET_MOISTURE],
                     hysteresis=user_input[CONF_HYSTERESIS],
+                    fertilizer_steps=user_input[CONF_FERTILIZER_STEPS],
                 )
                 await coordinator.async_publish_planter_get()
                 return self.async_create_entry(title="", data=dict(self.config_entry.options))
@@ -113,6 +115,10 @@ class WateringIoOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(CONF_TARGET_MOISTURE, default=45.0): vol.All(
                     vol.Coerce(float),
                     vol.Range(min=0, max=100),
+                ),
+                vol.Required(CONF_FERTILIZER_STEPS, default=0): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=0),
                 ),
                 vol.Required(CONF_HYSTERESIS, default=5.0): vol.All(
                     vol.Coerce(float),

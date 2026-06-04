@@ -55,12 +55,14 @@ Entities are created for:
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture/temperature/online diagnostics
 - Sensor rescan button publishing `{}` to `<root>/cmd/sensors/rescan`
-- Per-planter target moisture number entities and dashboard edits that publish updates through the planter config command
+- Per-planter target moisture and fertilizer steps number entities that publish updates through the planter config command
 
 Home Assistant device identifiers use `("watering_io", hub_id)`. ESP32 `device_id` values are treated as firmware metadata and are not used for entity unique IDs. Planter and sensor unique IDs are based on:
 
 - Planters: `<hub_id>_planter_<planter_id>_<metric>`
 - Sensors: `<hub_id>_sensor_<sensor_modbus_id>_<metric>`
+
+The hub device name includes the logical hub id when the firmware-provided name does not already contain it. The hub id is also exposed as the hub device serial number in Home Assistant's device details.
 
 Planter entities are grouped under Home Assistant child devices named `Planter <planter_id>` with `via_device` pointing to the hub. These child device identifiers are derived from `hub_id` and `planter_id`, not from ESP32 hardware metadata.
 
@@ -76,9 +78,11 @@ The integration publishes planter configuration commands to:
 <root>/cmd/config/planters/get
 ```
 
-The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, and `hysteresis` to the hub. The integration keeps its planter cache from retained `<root>/config/planters` and stores the latest ack received below `<root>/ack/#`.
+The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, `fertilizer_steps`, and `hysteresis` to the hub. The integration keeps its planter cache from retained `<root>/config/planters` and stores the latest ack received below `<root>/ack/#`.
 
 The integration also exposes the `watering_io.set_target_moisture` service. It accepts `planter_id` and `target_moisture`, preserves the cached planter config values, and publishes the full update to `<root>/cmd/config/planters/set`.
+
+Each Planter device page also exposes editable number controls for target moisture and fertilizer steps. Both controls preserve the cached planter config and publish the full planter update command with only the edited value changed.
 
 ## Dosing Measurements
 
