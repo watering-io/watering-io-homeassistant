@@ -62,6 +62,8 @@ Home Assistant device identifiers use `("watering_io", hub_id)`. ESP32 `device_i
 - Planters: `<hub_id>_planter_<planter_id>_<metric>`
 - Sensors: `<hub_id>_sensor_<sensor_modbus_id>_<metric>`
 
+Planter entities are grouped under Home Assistant child devices named `Planter <planter_id>` with `via_device` pointing to the hub. These child device identifiers are derived from `hub_id` and `planter_id`, not from ESP32 hardware metadata.
+
 ## Planter Configuration
 
 Planters can be added, updated, or deleted from **Settings > Devices & services > Watering.IO Hub > Configure**.

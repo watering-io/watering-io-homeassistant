@@ -193,7 +193,16 @@ class WateringIoCoordinator:
         return f"{self.hub_id}_sensor_{sensor_id}_{metric}"
 
     def planter_device_info(self, planter_id: str, planter_unique_id: str | None = None) -> DeviceInfo:
-        return self.hub_device_info
+        planter_identifier = planter_unique_id or self.planter_unique_id(planter_id)
+        if planter_identifier is None or not self.hub_id_available:
+            return self.hub_device_info
+        return DeviceInfo(
+            identifiers={(DOMAIN, planter_identifier)},
+            name=f"Planter {planter_id}",
+            manufacturer="Watering.IO",
+            model="Watering.IO Planter",
+            via_device=(DOMAIN, self.hub_id),
+        )
 
     def topic_is_stale(self, topic: str, seconds: int = 60) -> bool:
         last = self.state.topic_last_update.get(topic)
