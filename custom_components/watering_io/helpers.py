@@ -85,6 +85,32 @@ def total_water_ml(total_dosing_s: Any, pump_flow_ml_per_s: Any) -> int | float 
     return value
 
 
+def daily_water_history(data: dict[str, Any], pump_flow_ml_per_s: Any) -> list[dict[str, int | float | str]]:
+    """Return daily water history converted from firmware dosing seconds."""
+    items = data.get("daily_dosing_s") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return []
+
+    history: list[dict[str, int | float | str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        date = str(item.get("date") or "").strip()
+        water = total_water_ml(item.get("dosing_s"), pump_flow_ml_per_s)
+        if not date or water is None:
+            continue
+        history.append({"date": date, "water_ml": water})
+    return history
+
+
+def today_water_ml(data: dict[str, Any], pump_flow_ml_per_s: Any) -> int | float | None:
+    """Return the rightmost daily water bucket as today's water value."""
+    history = daily_water_history(data, pump_flow_ml_per_s)
+    if not history:
+        return None
+    return history[-1]["water_ml"]
+
+
 def extract_sensor_id(item: Any) -> str | None:
     """Extract a sensor modbus id from mixed schema formats."""
     if isinstance(item, dict):

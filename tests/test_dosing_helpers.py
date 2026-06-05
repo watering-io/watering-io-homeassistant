@@ -104,6 +104,49 @@ class DosingHelperTests(unittest.TestCase):
     def test_invalid_values_return_none(self) -> None:
         self.assertIsNone(helpers.total_water_ml("not-a-number", 1.0))
 
+    def test_daily_water_history_converts_dosing_seconds_to_ml(self) -> None:
+        payload = {
+            "daily_dosing_s": [
+                {"date": "2026-05-30", "dosing_s": 0},
+                {"date": "2026-05-31", "dosing_s": 18},
+                {"date": "2026-06-01", "dosing_s": "42"},
+            ]
+        }
+
+        self.assertEqual(
+            helpers.daily_water_history(payload, 1.5),
+            [
+                {"date": "2026-05-30", "water_ml": 0},
+                {"date": "2026-05-31", "water_ml": 27},
+                {"date": "2026-06-01", "water_ml": 63},
+            ],
+        )
+
+    def test_today_water_uses_rightmost_daily_bucket(self) -> None:
+        payload = {
+            "daily_dosing_s": [
+                {"date": "2026-05-30", "dosing_s": 18},
+                {"date": "2026-06-01", "dosing_s": 42},
+            ]
+        }
+
+        self.assertEqual(helpers.today_water_ml(payload, 2.0), 84)
+
+    def test_daily_water_history_ignores_invalid_entries(self) -> None:
+        payload = {
+            "daily_dosing_s": [
+                {"date": "2026-05-30", "dosing_s": 18},
+                {"date": "", "dosing_s": 42},
+                {"date": "2026-06-01", "dosing_s": "bad"},
+                "bad",
+            ]
+        }
+
+        self.assertEqual(
+            helpers.daily_water_history(payload, 1.0),
+            [{"date": "2026-05-30", "water_ml": 18}],
+        )
+
     def test_planter_config_set_payload_updates_only_target_moisture(self) -> None:
         config = {
             "planter_id": 3,

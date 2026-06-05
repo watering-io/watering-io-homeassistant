@@ -96,8 +96,11 @@ Supported dosing fields:
 
 - `total_dosing_s` -> planter metric `total_dosing_s`
 - `total_dosing_s` plus pump calibration -> planter metric `total_water_ml`
+- `daily_dosing_s` plus pump calibration -> planter metric `daily_water`
 
 `total_dosing_s` and `total_water_ml` are exposed as `total_increasing` sensors so they can be used with Home Assistant `utility_meter` helpers for daily, monthly, or seasonal totals.
+
+`daily_water` exposes today's water in mL as the sensor state and a 7-day `daily_water` attribute array for the dashboard card. Users do not need to create Home Assistant statistics or `utility_meter` helpers for the built-in card's daily water bars.
 
 The pump flow calibration is available in the integration options:
 
@@ -123,9 +126,12 @@ moisture_entity: sensor.planter_1_moisture
 target_entity: sensor.planter_1_target_moisture
 online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
+water_history_entity: sensor.planter_1_daily_water
 ```
 
 The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor in the card. Saving a new value calls `watering_io.set_target_moisture`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only `target_moisture` changed, then refreshes the cached planter config.
+
+The `water_history_entity` is optional when entity IDs follow the integration defaults; the card infers the matching `daily_water` entity from the planter's moisture or target entity. The daily water bars show today plus the previous six local dates, and hovering or focusing a bar shows the exact amount for that day.
 
 Available crop presets:
 
@@ -159,7 +165,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.19
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.20
 Resource type: JavaScript module
 ```
 

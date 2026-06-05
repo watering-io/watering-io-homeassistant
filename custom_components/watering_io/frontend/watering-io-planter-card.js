@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.19";
+const CARD_VERSION = "0.1.20";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -36,6 +36,7 @@ const FORM_LABELS = {
   online_entity: "Online entity",
   watering_entity: "Watering entity",
   state_entity: "State entity",
+  water_history_entity: "Water history entity",
 };
 
 function clamp(value, min, max) {
@@ -84,6 +85,14 @@ function cssPercent(value) {
   return `${clamp(value, 0, 100).toFixed(2)}%`;
 }
 
+function formatWaterMl(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "--";
+  }
+  return `${Math.round(number)} mL`;
+}
+
 function moistureGradient(target) {
   if (target === null) {
     return "linear-gradient(90deg, #c7473f 0%, #dfad4d 22%, #58ad63 50%, #dfad4d 78%, #c7473f 100%)";
@@ -125,6 +134,111 @@ function planterIdFromConfig(config) {
   return planterMatch?.[1];
 }
 
+function candidateDailyWaterEntity(entityId) {
+  if (!entityId?.startsWith("sensor.")) {
+    return undefined;
+  }
+  if (entityId.endsWith("_target_moisture")) {
+    return entityId.replace(/_target_moisture$/, "_daily_water");
+  }
+  if (entityId.endsWith("_moisture")) {
+    return entityId.replace(/_moisture$/, "_daily_water");
+  }
+  return undefined;
+}
+
+function waterHistoryEntityFromConfig(hass, config) {
+  if (config?.water_history_entity) {
+    return config.water_history_entity;
+  }
+
+  const planterId = planterIdFromConfig(config);
+  const candidates = [
+    candidateDailyWaterEntity(config?.target_entity),
+    candidateDailyWaterEntity(config?.moisture_entity),
+    planterId ? `sensor.planter_${planterId}_daily_water` : undefined,
+  ].filter(Boolean);
+
+  return candidates.find((entityId) => hass?.states?.[entityId]) || candidates[0];
+}
+
+function parseWaterHistory(stateObj) {
+  if (isUnknown(stateObj)) {
+    return [];
+  }
+
+  const raw = Array.isArray(stateObj.attributes?.daily_water)
+    ? stateObj.attributes.daily_water
+    : Array.isArray(stateObj.attributes?.history)
+      ? stateObj.attributes.history
+      : [];
+
+  return raw
+    .map((item) => {
+      const date = String(item?.date || "").trim();
+      const waterMl = Number(item?.water_ml);
+      if (!date || !Number.isFinite(waterMl)) {
+        return null;
+      }
+      return { date, waterMl };
+    })
+    .filter(Boolean)
+    .slice(-7);
+}
+
+function formatShortDate(date) {
+  const parts = String(date || "").split("-");
+  if (parts.length !== 3) {
+    return date || "";
+  }
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = monthNames[Number(parts[1]) - 1] || parts[1];
+  return `${month} ${Number(parts[2])}`;
+}
+
+function formatDayLabel(date) {
+  const parts = String(date || "").split("-");
+  if (parts.length !== 3) {
+    return "";
+  }
+  const day = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).toLocaleDateString(undefined, {
+    weekday: "short",
+  });
+  return day.slice(0, 1);
+}
+
+function waterHistoryMarkup(history) {
+  if (!history.length) {
+    return "";
+  }
+
+  const maxWater = Math.max(...history.map((item) => item.waterMl), 1);
+  const today = history[history.length - 1];
+  const bars = history
+    .map((item) => {
+      const percent = item.waterMl <= 0 ? 2 : clamp((item.waterMl / maxWater) * 100, 8, 100);
+      const tooltip = `${formatShortDate(item.date)}: ${formatWaterMl(item.waterMl)}`;
+      return `
+        <div class="water-bar" tabindex="0" role="img" aria-label="${escapeHtml(tooltip)}" data-tooltip="${escapeHtml(tooltip)}">
+          <div class="water-bar-fill" style="height: ${percent.toFixed(2)}%"></div>
+        </div>
+      `;
+    })
+    .join("");
+  const labels = history.map((item) => `<span>${escapeHtml(formatDayLabel(item.date))}</span>`).join("");
+
+  return `
+    <div class="water-history">
+      <div class="water-history-head">
+        <span>Water</span>
+        <strong>${escapeHtml(formatWaterMl(today.waterMl))}</strong>
+      </div>
+      <div class="water-bars">${bars}</div>
+      <div class="water-days">${labels}</div>
+    </div>
+  `;
+}
+
 class WateringIoPlanterCard extends HTMLElement {
   constructor() {
     super();
@@ -154,6 +268,7 @@ class WateringIoPlanterCard extends HTMLElement {
         { name: "online_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "watering_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "state_entity", selector: { entity: { domain: "sensor" } } },
+        { name: "water_history_entity", selector: { entity: { domain: "sensor" } } },
       ],
       computeLabel: (schema) => FORM_LABELS[schema.name] || schema.name,
     };
@@ -181,14 +296,14 @@ class WateringIoPlanterCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 4;
+    return 5;
   }
 
   getGridOptions() {
     return {
-      rows: 4,
+      rows: 5,
       columns: 6,
-      min_rows: 3,
+      min_rows: 4,
       min_columns: 3,
     };
   }
@@ -203,6 +318,8 @@ class WateringIoPlanterCard extends HTMLElement {
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const planterState = entityState(this._hass, this.config.state_entity);
+    const waterHistoryEntity = waterHistoryEntityFromConfig(this._hass, this.config);
+    const waterHistoryState = entityState(this._hass, waterHistoryEntity);
     const planterId = planterIdFromConfig(this.config);
     const renderKey = JSON.stringify([
       this.config.name || "",
@@ -219,6 +336,10 @@ class WateringIoPlanterCard extends HTMLElement {
       wateringState?.state || "",
       this.config.state_entity || "",
       planterState?.state || "",
+      this.config.water_history_entity || "",
+      waterHistoryEntity || "",
+      waterHistoryState?.state || "",
+      JSON.stringify(waterHistoryState?.attributes?.daily_water || waterHistoryState?.attributes?.history || []),
       this._editingTarget ? "editing" : "",
       this._targetDraft ?? "",
       this._targetError || "",
@@ -241,6 +362,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const onlineLabel = onlineState?.state === "on" ? "Online" : "Offline";
     const wateringLabel = wateringState?.state === "on" ? "Watering" : "Idle";
     const stateLabel = stateText(planterState, "No state");
+    const waterHistory = parseWaterHistory(waterHistoryState);
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
     const targetEditable = Boolean(planterId);
     const targetDraft = this._targetDraft ?? target ?? 50;
@@ -453,6 +575,108 @@ class WateringIoPlanterCard extends HTMLElement {
           font-size: 11px;
         }
 
+        .water-history {
+          margin-top: 16px;
+          padding-top: 12px;
+          border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        }
+
+        .water-history-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 10px;
+          color: var(--secondary-text-color);
+          font-size: 12px;
+          font-weight: 650;
+          line-height: 1.2;
+          text-transform: uppercase;
+        }
+
+        .water-history-head strong {
+          color: var(--primary-text-color);
+          font-size: 13px;
+          font-weight: 760;
+          text-transform: none;
+          white-space: nowrap;
+        }
+
+        .water-bars {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+          align-items: end;
+          gap: 7px;
+          height: 58px;
+          margin-top: 8px;
+        }
+
+        .water-bar {
+          position: relative;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          height: 58px;
+          min-width: 0;
+          border-radius: 4px;
+          outline: 0;
+        }
+
+        .water-bar-fill {
+          width: min(100%, 18px);
+          min-height: 2px;
+          border-radius: 4px 4px 0 0;
+          background: #7cc7f6;
+          background: color-mix(in srgb, var(--primary-color, #03a9f4) 58%, white);
+          box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+          transition: background 120ms ease, transform 120ms ease;
+        }
+
+        .water-bar:hover .water-bar-fill,
+        .water-bar:focus-visible .water-bar-fill {
+          background: #55b5ee;
+          background: color-mix(in srgb, var(--primary-color, #03a9f4) 76%, white);
+          transform: translateY(-1px);
+        }
+
+        .water-bar::after {
+          content: attr(data-tooltip);
+          position: absolute;
+          left: 50%;
+          bottom: calc(100% + 8px);
+          z-index: 2;
+          max-width: 120px;
+          padding: 6px 8px;
+          border-radius: 6px;
+          background: var(--primary-text-color);
+          color: var(--card-background-color, #fff);
+          font-size: 11px;
+          font-weight: 650;
+          line-height: 1.2;
+          opacity: 0;
+          pointer-events: none;
+          text-align: center;
+          transform: translate(-50%, 4px);
+          transition: opacity 120ms ease, transform 120ms ease;
+          white-space: nowrap;
+        }
+
+        .water-bar:hover::after,
+        .water-bar:focus-visible::after {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+
+        .water-days {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+          gap: 7px;
+          margin-top: 5px;
+          color: var(--secondary-text-color);
+          font-size: 10px;
+          line-height: 1;
+          text-align: center;
+        }
+
         .missing {
           margin-top: 12px;
           color: var(--error-color, #db4437);
@@ -592,6 +816,7 @@ class WateringIoPlanterCard extends HTMLElement {
             <span>50%</span>
             <span>100%</span>
           </div>
+          ${waterHistoryMarkup(waterHistory)}
           ${missingRequired ? '<div class="missing">Configure moisture and target entities.</div>' : ""}
         </div>
         ${

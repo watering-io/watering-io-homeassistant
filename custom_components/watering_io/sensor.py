@@ -17,9 +17,11 @@ from .coordinator import SIGNAL_UPDATE, WateringIoCoordinator
 from .entity import WateringEntity, WateringPlanterEntity
 from .helpers import (
     coerce_numeric,
+    daily_water_history,
     extract_planter_id,
     extract_sensor_id,
     nested_value,
+    today_water_ml,
     total_water_ml,
 )
 
@@ -37,6 +39,7 @@ SYSTEM_FIELDS = [
 PLANTER_DOSING_FIELDS = [
     "total_dosing_s",
     "total_water_ml",
+    "daily_water",
 ]
 SCHEDULE_SENSOR_FIELDS = [
     ("schedule_phase", "Schedule phase", ("phase",)),
@@ -67,6 +70,7 @@ TEMPERATURE_FIELDS = {"temperature"}
 CURRENT_FIELDS = {"bus_current", "input_current"}
 DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
+VOLUME_FIELDS = {"total_water_ml", "daily_water"}
 NUMERIC_FIELDS = {"last_seen_s", "missed_scans", *CURRENT_FIELDS, *DURATION_FIELDS}
 SCHEDULE_NUMERIC_FIELDS = {
     "fertilizer_current_planter_id",
@@ -108,6 +112,8 @@ def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | N
         return coerce_numeric(value)
     if field == "total_water_ml" and coordinator is not None:
         return total_water_ml(data.get("total_dosing_s"), coordinator.pump_1_flow_ml_per_s)
+    if field == "daily_water" and coordinator is not None:
+        return today_water_ml(data, coordinator.pump_1_flow_ml_per_s)
     return value
 
 
@@ -135,13 +141,17 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
         entity._attr_native_unit_of_measurement = UnitOfTime.SECONDS
         if field in TOTAL_INCREASING_FIELDS:
             entity._attr_state_class = SensorStateClass.TOTAL_INCREASING
-    elif field == "total_water_ml":
+    elif field in VOLUME_FIELDS:
         # Home Assistant's water device class does not accept mL; volume does.
         volume_device_class = getattr(SensorDeviceClass, "VOLUME", None)
         if volume_device_class is not None:
             entity._attr_device_class = volume_device_class
         entity._attr_native_unit_of_measurement = "mL"
-        entity._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        entity._attr_state_class = (
+            SensorStateClass.TOTAL_INCREASING
+            if field in TOTAL_INCREASING_FIELDS
+            else SensorStateClass.MEASUREMENT
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -254,6 +264,16 @@ class WateringPlanterSensor(WateringPlanterEntity, SensorEntity):
     @property
     def native_value(self):
         return _status_value(self.coordinator.state.planter_status.get(self.planter_id, {}), self.field, self.coordinator)
+
+    @property
+    def extra_state_attributes(self):
+        if self.field != "daily_water":
+            return None
+        history = daily_water_history(
+            self.coordinator.state.planter_status.get(self.planter_id, {}),
+            self.coordinator.pump_1_flow_ml_per_s,
+        )
+        return {"daily_water": history}
 
 
 class WateringDynamicSensor(WateringEntity, SensorEntity):
