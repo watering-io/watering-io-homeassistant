@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.20";
+const CARD_VERSION = "0.1.21";
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -35,7 +35,6 @@ const FORM_LABELS = {
   target_entity: "Target entity",
   online_entity: "Online entity",
   watering_entity: "Watering entity",
-  state_entity: "State entity",
   water_history_entity: "Water history entity",
 };
 
@@ -110,13 +109,6 @@ function cropUrl(crop) {
   return `${STATIC_BASE}/crops/${safeCrop}.webp?v=${CARD_VERSION}`;
 }
 
-function stateText(stateObj, fallback = "Unknown") {
-  if (isUnknown(stateObj)) {
-    return fallback;
-  }
-  return stateObj.state;
-}
-
 function chipClass(base, stateObj, activeState = "on") {
   if (isUnknown(stateObj)) {
     return `${base} muted`;
@@ -160,6 +152,16 @@ function waterHistoryEntityFromConfig(hass, config) {
   ].filter(Boolean);
 
   return candidates.find((entityId) => hass?.states?.[entityId]) || candidates[0];
+}
+
+function dailyCapEntityFromConfig(hass, config) {
+  const planterId = planterIdFromConfig(config);
+  if (!planterId) {
+    return undefined;
+  }
+
+  const entityId = `binary_sensor.planter_${planterId}_daily_dosing_cap_reached`;
+  return hass?.states?.[entityId] ? entityId : undefined;
 }
 
 function parseWaterHistory(stateObj) {
@@ -267,7 +269,6 @@ class WateringIoPlanterCard extends HTMLElement {
         { name: "target_entity", required: true, selector: { entity: { domain: "sensor" } } },
         { name: "online_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "watering_entity", selector: { entity: { domain: "binary_sensor" } } },
-        { name: "state_entity", selector: { entity: { domain: "sensor" } } },
         { name: "water_history_entity", selector: { entity: { domain: "sensor" } } },
       ],
       computeLabel: (schema) => FORM_LABELS[schema.name] || schema.name,
@@ -317,7 +318,8 @@ class WateringIoPlanterCard extends HTMLElement {
     const targetState = entityState(this._hass, this.config.target_entity);
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
-    const planterState = entityState(this._hass, this.config.state_entity);
+    const dailyCapEntity = dailyCapEntityFromConfig(this._hass, this.config);
+    const dailyCapState = entityState(this._hass, dailyCapEntity);
     const waterHistoryEntity = waterHistoryEntityFromConfig(this._hass, this.config);
     const waterHistoryState = entityState(this._hass, waterHistoryEntity);
     const planterId = planterIdFromConfig(this.config);
@@ -334,8 +336,8 @@ class WateringIoPlanterCard extends HTMLElement {
       onlineState?.state || "",
       this.config.watering_entity || "",
       wateringState?.state || "",
-      this.config.state_entity || "",
-      planterState?.state || "",
+      dailyCapEntity || "",
+      dailyCapState?.state || "",
       this.config.water_history_entity || "",
       waterHistoryEntity || "",
       waterHistoryState?.state || "",
@@ -360,8 +362,11 @@ class WateringIoPlanterCard extends HTMLElement {
       moistureState?.attributes?.friendly_name?.replace(/\s+moisture$/i, "") ||
       "Planter";
     const onlineLabel = onlineState?.state === "on" ? "Online" : "Offline";
-    const wateringLabel = wateringState?.state === "on" ? "Watering" : "Idle";
-    const stateLabel = stateText(planterState, "No state");
+    const wateringActive = wateringState?.state === "on";
+    const capReached = !wateringActive && dailyCapState?.state === "on";
+    const wateringLabel = wateringActive ? "Watering" : capReached ? "Maxed" : "Idle";
+    const wateringChipClass = chipClass("chip watering", wateringState);
+    const planterStateChipClass = capReached ? "chip watering maxed active" : wateringChipClass;
     const waterHistory = parseWaterHistory(waterHistoryState);
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
     const targetEditable = Boolean(planterId);
@@ -450,6 +455,11 @@ class WateringIoPlanterCard extends HTMLElement {
         .chip.active.watering {
           background: rgba(16, 126, 191, 0.15);
           color: #0d6ea6;
+        }
+
+        .chip.active.maxed {
+          background: rgba(199, 71, 63, 0.16);
+          color: #b83830;
         }
 
         .chip.muted {
@@ -791,8 +801,7 @@ class WateringIoPlanterCard extends HTMLElement {
         <div class="content">
           <div class="chips">
             ${this.config.online_entity ? `<span class="${chipClass("chip online", onlineState)}">${escapeHtml(onlineLabel)}</span>` : ""}
-            ${this.config.watering_entity ? `<span class="${chipClass("chip watering", wateringState)}">${escapeHtml(wateringLabel)}</span>` : ""}
-            ${this.config.state_entity ? `<span class="chip state ${isUnknown(planterState) ? "muted" : ""}">${escapeHtml(stateLabel)}</span>` : ""}
+            ${this.config.watering_entity ? `<span class="${planterStateChipClass}">${escapeHtml(wateringLabel)}</span>` : ""}
           </div>
           <div class="reading-row">
             <div class="reading">
