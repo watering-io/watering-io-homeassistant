@@ -16,6 +16,7 @@ SCHEDULE_BINARY_FIELDS = [
     ("schedule_auto_moisture_allowed", "Schedule auto moisture allowed", ("auto_moisture_allowed",)),
     ("schedule_time_synced", "Schedule time synced", ("time_synced",)),
 ]
+PLANTER_BINARY_FIELDS = ["watering", "online", "daily_dosing_cap_reached"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -50,12 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             if not planter_id or planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
-            new_entities.extend(
-                [
-                    PlanterBinarySensor(coordinator, planter_id, "watering"),
-                    PlanterBinarySensor(coordinator, planter_id, "online"),
-                ]
-            )
+            new_entities.extend(PlanterBinarySensor(coordinator, planter_id, field) for field in PLANTER_BINARY_FIELDS)
 
         for sensor in coordinator.state.schema.get("entities", {}).get("sensors", []):
             sensor_id = extract_sensor_id(sensor)
@@ -68,12 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             if planter_id in added_planters or coordinator.planter_unique_id(planter_id) is None:
                 continue
             added_planters.add(planter_id)
-            new_entities.extend(
-                [
-                    PlanterBinarySensor(coordinator, planter_id, "watering"),
-                    PlanterBinarySensor(coordinator, planter_id, "online"),
-                ]
-            )
+            new_entities.extend(PlanterBinarySensor(coordinator, planter_id, field) for field in PLANTER_BINARY_FIELDS)
 
         for sensor_id in coordinator.state.sensor_status:
             if sensor_id in added_sensors:

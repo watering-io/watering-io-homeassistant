@@ -130,6 +130,7 @@ def _config_value(config: dict[str, Any], key: str) -> Any:
         "valve_route": ("valve_route", "valveRoute"),
         "target_moisture": ("target_moisture", "targetMoisture"),
         "fertilizer_steps": ("fertilizer_steps", "fertilizerSteps"),
+        "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
     }
     for alias in aliases.get(key, (key,)):
         if config.get(alias) is not None:
@@ -141,6 +142,7 @@ def planter_config_set_payload(
     config: dict[str, Any],
     target_moisture: float | None = None,
     fertilizer_steps: int | None = None,
+    max_daily_dosing_s: int | None = None,
 ) -> dict[str, Any]:
     """Build a planter set payload with selected values updated."""
     required_keys = (
@@ -170,4 +172,9 @@ def planter_config_set_payload(
     )
     if fertilizer_value is not None:
         payload["fertilizer_steps"] = int(fertilizer_value)
+    max_daily_value = (
+        max_daily_dosing_s if max_daily_dosing_s is not None else _config_value(config, "max_daily_dosing_s")
+    )
+    if max_daily_value is not None:
+        payload["max_daily_dosing_s"] = int(max_daily_value)
     return payload

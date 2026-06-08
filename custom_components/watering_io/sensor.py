@@ -60,6 +60,8 @@ PLANTER_FIELDS = [
     "target_moisture",
     "sensor_modbus_id",
     "valve_route",
+    "max_daily_dosing_s",
+    "daily_dosing_remaining_s",
     "next_dose_s",
     *PLANTER_DOSING_FIELDS,
 ]
@@ -68,7 +70,7 @@ PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
 SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
 CURRENT_FIELDS = {"bus_current", "input_current"}
-DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s"}
+DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s", "max_daily_dosing_s", "daily_dosing_remaining_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
 NUMERIC_FIELDS = {"last_seen_s", "missed_scans", *CURRENT_FIELDS, *DURATION_FIELDS}
@@ -90,6 +92,8 @@ FIELD_ALIASES = {
     "build_time_utc": ("build_time_utc", "buildTimeUtc"),
     "missed_scans": ("missed_scans", "missedScans"),
     "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
+    "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
+    "daily_dosing_remaining_s": ("daily_dosing_remaining_s", "dailyDosingRemainingS"),
 }
 
 
@@ -105,6 +109,8 @@ def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | N
     if field == "total_dosing_s":
         return coerce_numeric(value)
     if field == "next_dose_s":
+        return coerce_numeric(value)
+    if field in {"max_daily_dosing_s", "daily_dosing_remaining_s"}:
         return coerce_numeric(value)
     if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS or field in TEMPERATURE_FIELDS:
         return coerce_numeric(value)

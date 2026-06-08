@@ -27,6 +27,7 @@
           "valve_route": "Valve route",
           "target_moisture": "Target moisture (%)",
           "fertilizer_steps": "Fertilizer steps",
+          "max_daily_dosing_s": "Max daily dosing (s)",
           "hysteresis": "Hysteresis (%)"
         }
       },
