@@ -240,6 +240,7 @@ class WateringIoCoordinator:
         target_moisture: float,
         hysteresis: float,
         fertilizer_steps: int | None = None,
+        max_daily_dosing_s: int | None = None,
     ) -> None:
         payload = {
             "planter_id": planter_id,
@@ -251,6 +252,8 @@ class WateringIoCoordinator:
         }
         if fertilizer_steps is not None:
             payload["fertilizer_steps"] = fertilizer_steps
+        if max_daily_dosing_s is not None:
+            payload["max_daily_dosing_s"] = max_daily_dosing_s
         await self._publish_json(f"{self._hub_root_required()}/cmd/config/planters/set", payload)
 
     async def async_publish_planter_delete(self, planter_id: int) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -36,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 [
                     PlanterTargetMoistureNumber(coordinator, planter_id),
                     PlanterFertilizerStepsNumber(coordinator, planter_id),
+                    PlanterMaxDailyDosingNumber(coordinator, planter_id),
                 ]
             )
 
@@ -148,6 +149,59 @@ class PlanterFertilizerStepsNumber(WateringPlanterEntity, NumberEntity):
             return False
         try:
             planter_config_set_payload(config, fertilizer_steps=self.native_value or 0)
+        except (TypeError, ValueError):
+            return False
+        return True
+
+
+class PlanterMaxDailyDosingNumber(WateringPlanterEntity, NumberEntity):
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 86400
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+
+    def __init__(self, coordinator: WateringIoCoordinator, planter_id: str) -> None:
+        super().__init__(coordinator, planter_id)
+        self._attr_name = "Max daily dosing"
+        self._attr_unique_id = f"{self.planter_unique_id}_max_daily_dosing_s_number"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._config_payload_available()
+
+    @property
+    def native_value(self) -> int | None:
+        planter_config = self.coordinator.state.planter_configs.get(self.planter_id, {})
+        config_value = planter_config.get("max_daily_dosing_s", planter_config.get("maxDailyDosingS"))
+        if config_value is None:
+            config_value = self.coordinator.state.planter_status.get(self.planter_id, {}).get("max_daily_dosing_s")
+        value = coerce_numeric(config_value)
+        if value is None:
+            return None
+        return int(value)
+
+    async def async_set_native_value(self, value: float) -> None:
+        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        if not config:
+            raise HomeAssistantError(
+                f"Planter {self.planter_id} config is not loaded; refresh planter list before editing max daily dosing"
+            )
+
+        try:
+            payload = planter_config_set_payload(config, max_daily_dosing_s=int(value))
+        except (TypeError, ValueError) as err:
+            raise HomeAssistantError(f"Planter {self.planter_id} config is incomplete: {err}") from err
+
+        await self.coordinator.async_publish_planter_set(**payload)
+        await self.coordinator.async_publish_planter_get()
+
+    def _config_payload_available(self) -> bool:
+        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        if not config:
+            return False
+        try:
+            planter_config_set_payload(config, max_daily_dosing_s=self.native_value or 0)
         except (TypeError, ValueError):
             return False
         return True

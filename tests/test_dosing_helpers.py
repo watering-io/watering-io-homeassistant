@@ -195,6 +195,58 @@ class DosingHelperTests(unittest.TestCase):
             },
         )
 
+    def test_planter_config_set_payload_preserves_max_daily_dosing(self) -> None:
+        config = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 120,
+            "hysteresis": 4.0,
+            "max_daily_dosing_s": 300,
+        }
+
+        self.assertEqual(
+            helpers.planter_config_set_payload(config, 52),
+            {
+                "planter_id": 3,
+                "enabled": True,
+                "sensor_modbus_id": 1,
+                "valve_route": 5,
+                "target_moisture": 52.0,
+                "fertilizer_steps": 120,
+                "hysteresis": 4.0,
+                "max_daily_dosing_s": 300,
+            },
+        )
+
+    def test_planter_config_set_payload_updates_only_max_daily_dosing(self) -> None:
+        config = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 120,
+            "hysteresis": 4.0,
+            "max_daily_dosing_s": 300,
+        }
+
+        self.assertEqual(
+            helpers.planter_config_set_payload(config, max_daily_dosing_s=0),
+            {
+                "planter_id": 3,
+                "enabled": True,
+                "sensor_modbus_id": 1,
+                "valve_route": 5,
+                "target_moisture": 45.0,
+                "fertilizer_steps": 120,
+                "hysteresis": 4.0,
+                "max_daily_dosing_s": 0,
+            },
+        )
+
     def test_planter_config_set_payload_requires_complete_config(self) -> None:
         config = {
             "planter_id": 3,
@@ -216,6 +268,7 @@ class DosingHelperTests(unittest.TestCase):
             "targetMoisture": 45.0,
             "fertilizerSteps": 120,
             "hysteresis": 4.0,
+            "maxDailyDosingS": 300,
         }
 
         self.assertEqual(
@@ -228,6 +281,7 @@ class DosingHelperTests(unittest.TestCase):
                 "target_moisture": 52.0,
                 "fertilizer_steps": 120,
                 "hysteresis": 4.0,
+                "max_daily_dosing_s": 300,
             },
         )
 
