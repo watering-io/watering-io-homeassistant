@@ -79,6 +79,28 @@ assert.equal(
 
 assert.ok(Card, "card should register itself as a custom element");
 
+const renderedCard = new Card();
+renderedCard.setConfig({
+  crop: "generic",
+  moisture_entity: "sensor.planter_3_moisture",
+  target_entity: "sensor.planter_3_target_moisture",
+});
+renderedCard.hass = {
+  states: {
+    "sensor.planter_3_moisture": { state: "42", attributes: {} },
+    "sensor.planter_3_target_moisture": { state: "52", attributes: {} },
+    "number.planter_3_fertilizer_steps": { state: "180", attributes: {} },
+  },
+};
+
+assert.match(renderedCard.shadowRoot.innerHTML, /aria-label="Edit planter settings"/);
+assert.doesNotMatch(renderedCard.shadowRoot.innerHTML, />Fertilizer</);
+assert.doesNotMatch(renderedCard.shadowRoot.innerHTML, /180 steps/);
+
+renderedCard._openTargetEditor();
+assert.match(renderedCard.shadowRoot.innerHTML, />Fertilizer steps</);
+assert.match(renderedCard.shadowRoot.innerHTML, /class="fertilizer-input"/);
+
 const card = new Card();
 const calls = [];
 card.config = { target_entity: "sensor.planter_3_target_moisture" };

@@ -134,7 +134,7 @@ water_history_entity: sensor.planter_1_daily_water
 fertilizer_steps_entity: number.planter_1_fertilizer_steps
 ```
 
-The card always displays `target_entity`, which comes from the planter MQTT status topic. It also displays the matching fertilizer steps number entity; `fertilizer_steps_entity` is optional when entity IDs follow the integration defaults. Tapping the target/settings value opens a small editor for target moisture and fertilizer steps. Saving calls `watering_io.set_planter_settings`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only those edited values changed, then refreshes the cached planter config.
+The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor for target moisture and fertilizer steps. `fertilizer_steps_entity` is optional when entity IDs follow the integration defaults. Saving calls `watering_io.set_planter_settings`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only those edited values changed, then refreshes the cached planter config.
 
 The status chip shows `Watering` while the planter is watering, `Maxed` when the daily dosing cap is reached, and `Idle` otherwise.
 

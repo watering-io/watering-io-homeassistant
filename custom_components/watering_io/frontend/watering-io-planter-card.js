@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.22";
+const CARD_VERSION = "0.1.23";
 const MAX_FERTILIZER_STEPS = 100000;
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
@@ -213,13 +213,6 @@ function normalizeSteps(value) {
   return Math.round(clamp(number, 0, MAX_FERTILIZER_STEPS));
 }
 
-function formatSteps(value) {
-  if (value === null) {
-    return "-- steps";
-  }
-  return `${Math.round(value)} steps`;
-}
-
 function parseWaterHistory(stateObj) {
   if (isUnknown(stateObj)) {
     return [];
@@ -374,8 +367,6 @@ class WateringIoPlanterCard extends HTMLElement {
 
     const moistureState = entityState(this._hass, this.config.moisture_entity);
     const targetState = entityState(this._hass, this.config.target_entity);
-    const fertilizerStepsEntity = fertilizerStepsEntityFromConfig(this._hass, this.config);
-    const fertilizerStepsState = entityState(this._hass, fertilizerStepsEntity);
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const dailyCapEntity = dailyCapEntityFromConfig(this._hass, this.config);
@@ -391,9 +382,6 @@ class WateringIoPlanterCard extends HTMLElement {
       moistureState?.attributes?.friendly_name || "",
       this.config.target_entity || "",
       targetState?.state || "",
-      this.config.fertilizer_steps_entity || "",
-      fertilizerStepsEntity || "",
-      fertilizerStepsState?.state || "",
       planterId || "",
       this.config.online_entity || "",
       onlineState?.state || "",
@@ -418,7 +406,6 @@ class WateringIoPlanterCard extends HTMLElement {
 
     const moisture = parsePercent(moistureState);
     const target = parsePercent(targetState);
-    const fertilizerSteps = parseSteps(fertilizerStepsState);
     const moistureWidth = moisture === null ? 0 : moisture;
     const moistureLeft = moisture === null ? 0 : moisture;
     const barGradient = moistureGradient(target);
@@ -598,16 +585,6 @@ class WateringIoPlanterCard extends HTMLElement {
           justify-content: flex-end;
           color: var(--primary-text-color);
           font-size: 16px;
-        }
-
-        .target .secondary-label {
-          margin-top: 6px;
-        }
-
-        .target .secondary-value {
-          color: var(--primary-text-color);
-          font-size: 13px;
-          font-weight: 700;
         }
 
         .target ha-icon {
@@ -903,8 +880,6 @@ class WateringIoPlanterCard extends HTMLElement {
                 ${escapeHtml(formatPercent(target))}
                 ${targetEditable ? '<ha-icon icon="mdi:pencil"></ha-icon>' : ""}
               </strong>
-              <span class="secondary-label">Fertilizer</span>
-              <span class="secondary-value">${escapeHtml(formatSteps(fertilizerSteps))}</span>
             </button>
           </div>
           <div class="bar" role="img" aria-label="Moisture ${escapeHtml(formatPercent(moisture))}, target ${escapeHtml(formatPercent(target))}">
