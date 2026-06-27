@@ -21,3 +21,36 @@ set_target_moisture:
           step: 1
           unit_of_measurement: "%"
           mode: slider
+set_planter_settings:
+  name: Set planter settings
+  description: Update one planter's editable settings while preserving the rest of the cached planter config.
+  fields:
+    planter_id:
+      name: Planter ID
+      description: The planter id to update.
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    target_moisture:
+      name: Target moisture
+      description: New target moisture percentage.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+    fertilizer_steps:
+      name: Fertilizer steps
+      description: New fertilizer step count.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100000
+          step: 1
+          mode: box

@@ -23,7 +23,9 @@ FRONTEND_REGISTERED = "frontend_registered"
 SERVICES_REGISTERED = "services_registered"
 FRONTEND_URL_PATH = "/watering_io_static"
 FRONTEND_PATH = Path(__file__).parent / "frontend"
+MAX_FERTILIZER_STEPS = 100000
 
+SERVICE_SET_PLANTER_SETTINGS = "set_planter_settings"
 SERVICE_SET_TARGET_MOISTURE = "set_target_moisture"
 
 
@@ -88,25 +90,44 @@ def _async_register_services(hass: HomeAssistant) -> None:
     async def async_set_target_moisture(call: ServiceCall) -> None:
         planter_id = str(call.data["planter_id"])
         target_moisture = float(call.data["target_moisture"])
-        coordinator = _coordinator_for_planter(hass, planter_id)
-        if coordinator is None:
-            raise HomeAssistantError(f"Planter {planter_id} was not found")
+        await _async_update_planter_settings(
+            hass,
+            planter_id,
+            target_moisture=target_moisture,
+        )
 
-        config = coordinator.state.planter_configs.get(planter_id)
-        if not config:
-            await coordinator.async_publish_planter_get()
-            raise HomeAssistantError(
-                f"Planter {planter_id} config is not loaded yet; refresh planter list and try again"
-            )
+    async def async_set_planter_settings(call: ServiceCall) -> None:
+        planter_id = str(call.data["planter_id"])
+        target_moisture = call.data.get("target_moisture")
+        fertilizer_steps = call.data.get("fertilizer_steps")
+        if target_moisture is None and fertilizer_steps is None:
+            raise HomeAssistantError("At least one planter setting must be provided")
 
-        try:
-            payload = planter_config_set_payload(config, target_moisture)
-        except (TypeError, ValueError) as err:
-            raise HomeAssistantError(f"Planter {planter_id} config is incomplete: {err}") from err
+        await _async_update_planter_settings(
+            hass,
+            planter_id,
+            target_moisture=float(target_moisture) if target_moisture is not None else None,
+            fertilizer_steps=int(fertilizer_steps) if fertilizer_steps is not None else None,
+        )
 
-        await coordinator.async_publish_planter_set(**payload)
-        await coordinator.async_publish_planter_get()
-
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_PLANTER_SETTINGS,
+        async_set_planter_settings,
+        schema=vol.Schema(
+            {
+                vol.Required("planter_id"): cv.positive_int,
+                vol.Optional("target_moisture"): vol.All(
+                    vol.Coerce(float),
+                    vol.Range(min=0, max=100),
+                ),
+                vol.Optional("fertilizer_steps"): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=0, max=MAX_FERTILIZER_STEPS),
+                ),
+            }
+        ),
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_TARGET_MOISTURE,
@@ -124,12 +145,45 @@ def _async_register_services(hass: HomeAssistant) -> None:
     domain_data[SERVICES_REGISTERED] = True
 
 
+async def _async_update_planter_settings(
+    hass: HomeAssistant,
+    planter_id: str,
+    *,
+    target_moisture: float | None = None,
+    fertilizer_steps: int | None = None,
+) -> None:
+    """Publish a full planter config with selected settings changed."""
+    coordinator = _coordinator_for_planter(hass, planter_id)
+    if coordinator is None:
+        raise HomeAssistantError(f"Planter {planter_id} was not found")
+
+    config = coordinator.state.planter_configs.get(planter_id)
+    if not config:
+        await coordinator.async_publish_planter_get()
+        raise HomeAssistantError(
+            f"Planter {planter_id} config is not loaded yet; refresh planter list and try again"
+        )
+
+    try:
+        payload = planter_config_set_payload(
+            config,
+            target_moisture=target_moisture,
+            fertilizer_steps=fertilizer_steps,
+        )
+    except (TypeError, ValueError) as err:
+        raise HomeAssistantError(f"Planter {planter_id} config is incomplete: {err}") from err
+
+    await coordinator.async_publish_planter_set(**payload)
+    await coordinator.async_publish_planter_get()
+
+
 def _async_unregister_services_if_unused(hass: HomeAssistant) -> None:
     """Remove services after the last config entry is unloaded."""
     domain_data = hass.data.get(DOMAIN, {})
     if any(isinstance(value, WateringIoCoordinator) for value in domain_data.values()):
         return
     if domain_data.get(SERVICES_REGISTERED):
+        hass.services.async_remove(DOMAIN, SERVICE_SET_PLANTER_SETTINGS)
         hass.services.async_remove(DOMAIN, SERVICE_SET_TARGET_MOISTURE)
         domain_data.pop(SERVICES_REGISTERED, None)
 

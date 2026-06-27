@@ -1,4 +1,5 @@
-const CARD_VERSION = "0.1.21";
+const CARD_VERSION = "0.1.22";
+const MAX_FERTILIZER_STEPS = 100000;
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -33,6 +34,7 @@ const FORM_LABELS = {
   crop: "Crop picture",
   moisture_entity: "Moisture entity",
   target_entity: "Target entity",
+  fertilizer_steps_entity: "Fertilizer steps entity",
   online_entity: "Online entity",
   watering_entity: "Watering entity",
   water_history_entity: "Water history entity",
@@ -164,6 +166,60 @@ function dailyCapEntityFromConfig(hass, config) {
   return hass?.states?.[entityId] ? entityId : undefined;
 }
 
+function candidateFertilizerStepsEntity(entityId) {
+  if (!entityId?.startsWith("sensor.")) {
+    return undefined;
+  }
+  if (entityId.endsWith("_target_moisture")) {
+    return entityId.replace(/^sensor\./, "number.").replace(/_target_moisture$/, "_fertilizer_steps");
+  }
+  if (entityId.endsWith("_moisture")) {
+    return entityId.replace(/^sensor\./, "number.").replace(/_moisture$/, "_fertilizer_steps");
+  }
+  return undefined;
+}
+
+function fertilizerStepsEntityFromConfig(hass, config) {
+  if (config?.fertilizer_steps_entity) {
+    return config.fertilizer_steps_entity;
+  }
+
+  const planterId = planterIdFromConfig(config);
+  const candidates = [
+    candidateFertilizerStepsEntity(config?.target_entity),
+    candidateFertilizerStepsEntity(config?.moisture_entity),
+    planterId ? `number.planter_${planterId}_fertilizer_steps` : undefined,
+  ].filter(Boolean);
+
+  return candidates.find((entityId) => hass?.states?.[entityId]) || candidates[0];
+}
+
+function parseSteps(stateObj) {
+  if (isUnknown(stateObj)) {
+    return null;
+  }
+  const value = Number(stateObj.state);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return Math.round(clamp(value, 0, MAX_FERTILIZER_STEPS));
+}
+
+function normalizeSteps(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  return Math.round(clamp(number, 0, MAX_FERTILIZER_STEPS));
+}
+
+function formatSteps(value) {
+  if (value === null) {
+    return "-- steps";
+  }
+  return `${Math.round(value)} steps`;
+}
+
 function parseWaterHistory(stateObj) {
   if (isUnknown(stateObj)) {
     return [];
@@ -248,6 +304,7 @@ class WateringIoPlanterCard extends HTMLElement {
     this._lastRenderKey = null;
     this._editingTarget = false;
     this._targetDraft = null;
+    this._fertilizerStepsDraft = null;
     this._targetError = "";
     this._targetSubmitting = false;
   }
@@ -267,6 +324,7 @@ class WateringIoPlanterCard extends HTMLElement {
         },
         { name: "moisture_entity", required: true, selector: { entity: { domain: "sensor" } } },
         { name: "target_entity", required: true, selector: { entity: { domain: "sensor" } } },
+        { name: "fertilizer_steps_entity", selector: { entity: { domain: "number" } } },
         { name: "online_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "watering_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "water_history_entity", selector: { entity: { domain: "sensor" } } },
@@ -316,6 +374,8 @@ class WateringIoPlanterCard extends HTMLElement {
 
     const moistureState = entityState(this._hass, this.config.moisture_entity);
     const targetState = entityState(this._hass, this.config.target_entity);
+    const fertilizerStepsEntity = fertilizerStepsEntityFromConfig(this._hass, this.config);
+    const fertilizerStepsState = entityState(this._hass, fertilizerStepsEntity);
     const onlineState = entityState(this._hass, this.config.online_entity);
     const wateringState = entityState(this._hass, this.config.watering_entity);
     const dailyCapEntity = dailyCapEntityFromConfig(this._hass, this.config);
@@ -331,6 +391,9 @@ class WateringIoPlanterCard extends HTMLElement {
       moistureState?.attributes?.friendly_name || "",
       this.config.target_entity || "",
       targetState?.state || "",
+      this.config.fertilizer_steps_entity || "",
+      fertilizerStepsEntity || "",
+      fertilizerStepsState?.state || "",
       planterId || "",
       this.config.online_entity || "",
       onlineState?.state || "",
@@ -344,6 +407,7 @@ class WateringIoPlanterCard extends HTMLElement {
       JSON.stringify(waterHistoryState?.attributes?.daily_water || waterHistoryState?.attributes?.history || []),
       this._editingTarget ? "editing" : "",
       this._targetDraft ?? "",
+      this._fertilizerStepsDraft ?? "",
       this._targetError || "",
       this._targetSubmitting ? "submitting" : "",
     ]);
@@ -354,6 +418,7 @@ class WateringIoPlanterCard extends HTMLElement {
 
     const moisture = parsePercent(moistureState);
     const target = parsePercent(targetState);
+    const fertilizerSteps = parseSteps(fertilizerStepsState);
     const moistureWidth = moisture === null ? 0 : moisture;
     const moistureLeft = moisture === null ? 0 : moisture;
     const barGradient = moistureGradient(target);
@@ -371,6 +436,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const missingRequired = !this.config.moisture_entity || !this.config.target_entity;
     const targetEditable = Boolean(planterId);
     const targetDraft = this._targetDraft ?? target ?? 50;
+    const fertilizerStepsDraft = this._fertilizerStepsDraft;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -532,6 +598,16 @@ class WateringIoPlanterCard extends HTMLElement {
           justify-content: flex-end;
           color: var(--primary-text-color);
           font-size: 16px;
+        }
+
+        .target .secondary-label {
+          margin-top: 6px;
+        }
+
+        .target .secondary-value {
+          color: var(--primary-text-color);
+          font-size: 13px;
+          font-weight: 700;
         }
 
         .target ha-icon {
@@ -719,8 +795,21 @@ class WateringIoPlanterCard extends HTMLElement {
           line-height: 1.2;
         }
 
+        .dialog-field {
+          margin-top: 16px;
+        }
+
+        .dialog-field label {
+          display: block;
+          color: var(--secondary-text-color);
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1.2;
+          text-transform: uppercase;
+        }
+
         .dialog-value {
-          margin: 16px 0 10px;
+          margin: 8px 0 10px;
           font-size: 34px;
           font-weight: 760;
           line-height: 1;
@@ -808,12 +897,14 @@ class WateringIoPlanterCard extends HTMLElement {
               <div class="label">Moisture</div>
               <div class="value">${escapeHtml(formatPercent(moisture))}</div>
             </div>
-            <button class="target ${targetEditable ? "editable" : ""}" type="button" aria-label="${targetEditable ? "Edit target moisture" : "Target moisture"}">
+            <button class="target ${targetEditable ? "editable" : ""}" type="button" aria-label="${targetEditable ? "Edit planter settings" : "Planter settings"}">
               Target
               <strong>
                 ${escapeHtml(formatPercent(target))}
                 ${targetEditable ? '<ha-icon icon="mdi:pencil"></ha-icon>' : ""}
               </strong>
+              <span class="secondary-label">Fertilizer</span>
+              <span class="secondary-value">${escapeHtml(formatSteps(fertilizerSteps))}</span>
             </button>
           </div>
           <div class="bar" role="img" aria-label="Moisture ${escapeHtml(formatPercent(moisture))}, target ${escapeHtml(formatPercent(target))}">
@@ -831,11 +922,18 @@ class WateringIoPlanterCard extends HTMLElement {
         ${
           this._editingTarget
             ? `<div class="dialog-backdrop">
-                <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit target moisture">
-                  <div class="dialog-title">Target moisture</div>
-                  <div class="dialog-value">${escapeHtml(formatPercent(targetDraft))}</div>
-                  <input class="target-range" type="range" min="0" max="100" step="1" value="${escapeHtml(targetDraft)}">
-                  <input class="target-input" type="number" min="0" max="100" step="1" value="${escapeHtml(targetDraft)}" aria-label="Target moisture percentage">
+                <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit planter settings">
+                  <div class="dialog-title">Planter settings</div>
+                  <div class="dialog-field">
+                    <label for="target-moisture-input">Target moisture</label>
+                    <div class="dialog-value">${escapeHtml(formatPercent(targetDraft))}</div>
+                    <input class="target-range" type="range" min="0" max="100" step="1" value="${escapeHtml(targetDraft)}">
+                    <input id="target-moisture-input" class="target-input" type="number" min="0" max="100" step="1" value="${escapeHtml(targetDraft)}" aria-label="Target moisture percentage">
+                  </div>
+                  <div class="dialog-field">
+                    <label for="fertilizer-steps-input">Fertilizer steps</label>
+                    <input id="fertilizer-steps-input" class="fertilizer-input" type="number" min="0" max="${MAX_FERTILIZER_STEPS}" step="1" value="${escapeHtml(fertilizerStepsDraft ?? "")}" aria-label="Fertilizer steps">
+                  </div>
                   <div class="dialog-error">${escapeHtml(this._targetError)}</div>
                   <div class="dialog-actions">
                     <button class="cancel" type="button" ${this._targetSubmitting ? "disabled" : ""}>Cancel</button>
@@ -860,7 +958,10 @@ class WateringIoPlanterCard extends HTMLElement {
       return;
     }
     const target = parsePercent(entityState(this._hass, this.config.target_entity));
+    const fertilizerStepsEntity = fertilizerStepsEntityFromConfig(this._hass, this.config);
+    const fertilizerSteps = parseSteps(entityState(this._hass, fertilizerStepsEntity));
     this._targetDraft = target ?? 50;
+    this._fertilizerStepsDraft = fertilizerSteps;
     this._targetError = "";
     this._editingTarget = true;
     this._render(true);
@@ -869,6 +970,7 @@ class WateringIoPlanterCard extends HTMLElement {
   _attachTargetEditorListeners() {
     const range = this.shadowRoot.querySelector(".target-range");
     const input = this.shadowRoot.querySelector(".target-input");
+    const fertilizerInput = this.shadowRoot.querySelector(".fertilizer-input");
     const valueLabel = this.shadowRoot.querySelector(".dialog-value");
     const error = this.shadowRoot.querySelector(".dialog-error");
     const cancel = this.shadowRoot.querySelector(".dialog-actions .cancel");
@@ -890,12 +992,25 @@ class WateringIoPlanterCard extends HTMLElement {
         error.textContent = "";
       }
     };
+    const updateFertilizerDraft = (value) => {
+      this._fertilizerStepsDraft = value === "" ? null : normalizeSteps(value);
+      this._targetError = "";
+      if (fertilizerInput) {
+        fertilizerInput.value = this._fertilizerStepsDraft ?? "";
+      }
+      if (error) {
+        error.textContent = "";
+      }
+    };
 
     if (range) {
       range.addEventListener("input", (event) => updateDraft(event.target.value));
     }
     if (input) {
       input.addEventListener("input", (event) => updateDraft(event.target.value));
+    }
+    if (fertilizerInput) {
+      fertilizerInput.addEventListener("input", (event) => updateFertilizerDraft(event.target.value));
     }
     if (cancel) {
       cancel.addEventListener("click", () => {
@@ -905,11 +1020,11 @@ class WateringIoPlanterCard extends HTMLElement {
       });
     }
     if (save) {
-      save.addEventListener("click", () => this._saveTargetMoisture());
+      save.addEventListener("click", () => this._savePlanterSettings());
     }
   }
 
-  async _saveTargetMoisture() {
+  async _savePlanterSettings() {
     const planterId = planterIdFromConfig(this.config);
     if (!this._hass || !planterId) {
       return;
@@ -918,17 +1033,25 @@ class WateringIoPlanterCard extends HTMLElement {
     this._targetError = "";
     this._render(true);
     try {
-      await this._hass.callService("watering_io", "set_target_moisture", {
+      const data = {
         planter_id: Number(planterId),
         target_moisture: Number(this._targetDraft),
-      });
+      };
+      if (this._fertilizerStepsDraft !== null && this._fertilizerStepsDraft !== undefined) {
+        data.fertilizer_steps = Number(this._fertilizerStepsDraft);
+      }
+      await this._hass.callService("watering_io", "set_planter_settings", data);
       this._editingTarget = false;
     } catch (error) {
-      this._targetError = error?.message || "Could not update target moisture.";
+      this._targetError = error?.message || "Could not update planter settings.";
     } finally {
       this._targetSubmitting = false;
       this._render(true);
     }
+  }
+
+  async _saveTargetMoisture() {
+    await this._savePlanterSettings();
   }
 }
 
