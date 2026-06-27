@@ -178,3 +178,19 @@ def planter_config_set_payload(
     if max_daily_value is not None:
         payload["max_daily_dosing_s"] = int(max_daily_value)
     return payload
+
+
+def planter_config_update_source(
+    config: dict[str, Any] | None,
+    status: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Return the first source complete enough for a safe planter config update."""
+    for candidate in (config, status):
+        if not candidate:
+            continue
+        try:
+            planter_config_set_payload(candidate)
+        except (TypeError, ValueError):
+            continue
+        return candidate
+    return None

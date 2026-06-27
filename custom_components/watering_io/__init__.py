@@ -17,7 +17,7 @@ import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import WateringIoCoordinator
-from .helpers import extract_planter_id, planter_config_set_payload
+from .helpers import extract_planter_id, planter_config_set_payload, planter_config_update_source
 
 FRONTEND_REGISTERED = "frontend_registered"
 SERVICES_REGISTERED = "services_registered"
@@ -157,7 +157,10 @@ async def _async_update_planter_settings(
     if coordinator is None:
         raise HomeAssistantError(f"Planter {planter_id} was not found")
 
-    config = coordinator.state.planter_configs.get(planter_id)
+    config = planter_config_update_source(
+        coordinator.state.planter_configs.get(planter_id),
+        coordinator.state.planter_status.get(planter_id),
+    )
     if not config:
         await coordinator.async_publish_planter_get()
         raise HomeAssistantError(

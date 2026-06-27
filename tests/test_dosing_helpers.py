@@ -285,6 +285,54 @@ class DosingHelperTests(unittest.TestCase):
             },
         )
 
+    def test_planter_config_update_source_uses_status_when_config_missing(self) -> None:
+        status = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 120,
+            "hysteresis": 4.0,
+            "max_daily_dosing_s": 300,
+        }
+
+        self.assertIs(helpers.planter_config_update_source(None, status), status)
+
+    def test_planter_config_update_source_prefers_config(self) -> None:
+        config = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 120,
+            "hysteresis": 4.0,
+        }
+        status = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "valve_route": 5,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 180,
+            "hysteresis": 4.0,
+        }
+
+        self.assertIs(helpers.planter_config_update_source(config, status), config)
+
+    def test_planter_config_update_source_rejects_incomplete_status(self) -> None:
+        status = {
+            "planter_id": 3,
+            "enabled": True,
+            "sensor_modbus_id": 1,
+            "target_moisture": 45.0,
+            "fertilizer_steps": 120,
+            "hysteresis": 4.0,
+        }
+
+        self.assertIsNone(helpers.planter_config_update_source(None, status))
+
 
 if __name__ == "__main__":
     unittest.main()

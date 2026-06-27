@@ -11,7 +11,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN
 from .coordinator import SIGNAL_UPDATE, WateringIoCoordinator
 from .entity import WateringPlanterEntity
-from .helpers import coerce_numeric, extract_planter_id, planter_config_set_payload
+from .helpers import (
+    coerce_numeric,
+    extract_planter_id,
+    planter_config_set_payload,
+    planter_config_update_source,
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -49,6 +54,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         await coordinator.async_publish_planter_get()
 
 
+def _update_source(coordinator: WateringIoCoordinator, planter_id: str) -> dict | None:
+    return planter_config_update_source(
+        coordinator.state.planter_configs.get(planter_id),
+        coordinator.state.planter_status.get(planter_id),
+    )
+
+
 class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):
     _attr_device_class = NumberDeviceClass.MOISTURE
     _attr_mode = NumberMode.SLIDER
@@ -77,7 +89,7 @@ class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):
         )
 
     async def async_set_native_value(self, value: float) -> None:
-        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        config = _update_source(self.coordinator, self.planter_id)
         if not config:
             raise HomeAssistantError(
                 f"Planter {self.planter_id} config is not loaded; refresh planter list before editing target moisture"
@@ -92,7 +104,7 @@ class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):
         await self.coordinator.async_publish_planter_get()
 
     def _config_payload_available(self) -> bool:
-        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        config = _update_source(self.coordinator, self.planter_id)
         if not config:
             return False
         try:
@@ -129,7 +141,7 @@ class PlanterFertilizerStepsNumber(WateringPlanterEntity, NumberEntity):
         return int(value)
 
     async def async_set_native_value(self, value: float) -> None:
-        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        config = _update_source(self.coordinator, self.planter_id)
         if not config:
             raise HomeAssistantError(
                 f"Planter {self.planter_id} config is not loaded; refresh planter list before editing fertilizer steps"
@@ -144,7 +156,7 @@ class PlanterFertilizerStepsNumber(WateringPlanterEntity, NumberEntity):
         await self.coordinator.async_publish_planter_get()
 
     def _config_payload_available(self) -> bool:
-        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        config = _update_source(self.coordinator, self.planter_id)
         if not config:
             return False
         try:
@@ -182,7 +194,7 @@ class PlanterMaxDailyDosingNumber(WateringPlanterEntity, NumberEntity):
         return int(value)
 
     async def async_set_native_value(self, value: float) -> None:
-        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        config = _update_source(self.coordinator, self.planter_id)
         if not config:
             raise HomeAssistantError(
                 f"Planter {self.planter_id} config is not loaded; refresh planter list before editing max daily dosing"
@@ -197,7 +209,7 @@ class PlanterMaxDailyDosingNumber(WateringPlanterEntity, NumberEntity):
         await self.coordinator.async_publish_planter_get()
 
     def _config_payload_available(self) -> bool:
-        config = self.coordinator.state.planter_configs.get(self.planter_id)
+        config = _update_source(self.coordinator, self.planter_id)
         if not config:
             return False
         try:
