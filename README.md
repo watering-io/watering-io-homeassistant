@@ -132,7 +132,7 @@ online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
 water_history_entity: sensor.planter_1_daily_water
 fertilizer_steps_entity: number.planter_1_fertilizer_steps
-max_daily_dosing_entity: number.planter_1_max_daily_dosing_s
+max_daily_dosing_entity: number.planter_1_max_daily_dosing
 ```
 
 The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor for target moisture, fertilizer steps, and max daily dosing seconds. `fertilizer_steps_entity` and `max_daily_dosing_entity` are optional when entity IDs follow the integration defaults. Saving calls `watering_io.set_planter_settings`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only those edited values changed, then refreshes the cached planter config.
@@ -173,7 +173,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.24
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.25
 Resource type: JavaScript module
 ```
 

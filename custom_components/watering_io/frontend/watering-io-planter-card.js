@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.24";
+const CARD_VERSION = "0.1.25";
 const MAX_FERTILIZER_STEPS = 100000;
 const MAX_DAILY_DOSING_SECONDS = 86400;
 const STATIC_BASE = "/watering_io_static";
@@ -220,10 +220,10 @@ function candidateMaxDailyDosingEntity(entityId) {
     return undefined;
   }
   if (entityId.endsWith("_target_moisture")) {
-    return entityId.replace(/^sensor\./, "number.").replace(/_target_moisture$/, "_max_daily_dosing_s");
+    return entityId.replace(/^sensor\./, "number.").replace(/_target_moisture$/, "_max_daily_dosing");
   }
   if (entityId.endsWith("_moisture")) {
-    return entityId.replace(/^sensor\./, "number.").replace(/_moisture$/, "_max_daily_dosing_s");
+    return entityId.replace(/^sensor\./, "number.").replace(/_moisture$/, "_max_daily_dosing");
   }
   return undefined;
 }
@@ -237,6 +237,7 @@ function maxDailyDosingEntityFromConfig(hass, config) {
   const candidates = [
     candidateMaxDailyDosingEntity(config?.target_entity),
     candidateMaxDailyDosingEntity(config?.moisture_entity),
+    planterId ? `number.planter_${planterId}_max_daily_dosing` : undefined,
     planterId ? `number.planter_${planterId}_max_daily_dosing_s` : undefined,
   ].filter(Boolean);
 

@@ -81,12 +81,12 @@ assert.equal(
   context.maxDailyDosingEntityFromConfig(
     {
       states: {
-        "number.planter_3_max_daily_dosing_s": { state: "300" },
+        "number.planter_3_max_daily_dosing": { state: "300" },
       },
     },
     { target_entity: "sensor.planter_3_target_moisture" },
   ),
-  "number.planter_3_max_daily_dosing_s",
+  "number.planter_3_max_daily_dosing",
 );
 
 assert.equal(
@@ -118,7 +118,7 @@ renderedCard.hass = {
     "sensor.planter_3_moisture": { state: "42", attributes: {} },
     "sensor.planter_3_target_moisture": { state: "52", attributes: {} },
     "number.planter_3_fertilizer_steps": { state: "180", attributes: {} },
-    "number.planter_3_max_daily_dosing_s": { state: "300", attributes: {} },
+    "number.planter_3_max_daily_dosing": { state: "300", attributes: {} },
   },
 };
 
@@ -131,6 +131,7 @@ assert.match(renderedCard.shadowRoot.innerHTML, />Fertilizer steps</);
 assert.match(renderedCard.shadowRoot.innerHTML, /class="fertilizer-input"/);
 assert.match(renderedCard.shadowRoot.innerHTML, />Max daily dosing \(s\)</);
 assert.match(renderedCard.shadowRoot.innerHTML, /class="max-daily-dosing-input"/);
+assert.match(renderedCard.shadowRoot.innerHTML, /id="max-daily-dosing-input"[^>]*value="300"/);
 
 const card = new Card();
 const calls = [];
