@@ -21,6 +21,15 @@ helpers = load_module("watering_io_helpers", "custom_components/watering_io/help
 
 
 class DosingHelperTests(unittest.TestCase):
+    def test_sensor_scan_diagnostic_fields_are_exposed(self) -> None:
+        source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
+
+        self.assertIn('"today_scans"', source)
+        self.assertIn('"today_missed_scans"', source)
+        self.assertIn('"missed_scans"', source)
+        self.assertIn('"today_scans": ("today_scans", "todayScans")', source)
+        self.assertIn('"today_missed_scans": ("today_missed_scans", "todayMissedScans")', source)
+
     def test_new_planter_status_payload_dosing_fields(self) -> None:
         payload = {
             "hub_id": "greenhouse",

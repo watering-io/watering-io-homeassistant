@@ -65,7 +65,7 @@ PLANTER_FIELDS = [
     "next_dose_s",
     *PLANTER_DOSING_FIELDS,
 ]
-SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missed_scans"]
+SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missed_scans", "today_scans", "today_missed_scans"]
 PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
 SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
@@ -73,7 +73,7 @@ CURRENT_FIELDS = {"bus_current", "input_current"}
 DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s", "max_daily_dosing_s", "daily_dosing_remaining_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
-NUMERIC_FIELDS = {"last_seen_s", "missed_scans", *CURRENT_FIELDS, *DURATION_FIELDS}
+NUMERIC_FIELDS = {"last_seen_s", "missed_scans", "today_scans", "today_missed_scans", *CURRENT_FIELDS, *DURATION_FIELDS}
 SCHEDULE_NUMERIC_FIELDS = {
     "fertilizer_current_planter_id",
     "fertilizer_completed_count",
@@ -91,6 +91,8 @@ FIELD_ALIASES = {
     "build_dirty": ("build_dirty", "buildDirty"),
     "build_time_utc": ("build_time_utc", "buildTimeUtc"),
     "missed_scans": ("missed_scans", "missedScans"),
+    "today_scans": ("today_scans", "todayScans"),
+    "today_missed_scans": ("today_missed_scans", "todayMissedScans"),
     "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
     "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
     "daily_dosing_remaining_s": ("daily_dosing_remaining_s", "dailyDosingRemainingS"),

@@ -53,7 +53,7 @@ Entities are created for:
 - Pump binary sensors
 - Per-planter sensors and binary sensors
 - Per-planter dosing sensors for total dosing time and calculated total water
-- Per-sensor moisture/temperature/online diagnostics
+- Per-sensor moisture, temperature, online state, and scan stability diagnostics
 - Sensor rescan button publishing `{}` to `<root>/cmd/sensors/rescan`
 - Per-planter target moisture, fertilizer steps, and max daily dosing number entities that publish updates through the planter config command
 
