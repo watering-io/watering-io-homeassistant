@@ -93,6 +93,18 @@ assert.equal(
   context.maxDailyDosingEntityFromConfig(
     {
       states: {
+        "number.watering_io_planter_3_max_daily_dosing_s": { state: "300" },
+      },
+    },
+    { target_entity: "sensor.watering_io_planter_3_target_moisture" },
+  ),
+  "number.watering_io_planter_3_max_daily_dosing_s",
+);
+
+assert.equal(
+  context.maxDailyDosingEntityFromConfig(
+    {
+      states: {
         "number.planter_3_max_daily_dosing_s": { state: "300" },
         "number.custom_daily_cap": { state: "600" },
       },
@@ -110,15 +122,15 @@ assert.ok(Card, "card should register itself as a custom element");
 const renderedCard = new Card();
 renderedCard.setConfig({
   crop: "generic",
-  moisture_entity: "sensor.planter_3_moisture",
-  target_entity: "sensor.planter_3_target_moisture",
+  moisture_entity: "sensor.watering_io_planter_3_moisture",
+  target_entity: "sensor.watering_io_planter_3_target_moisture",
 });
 renderedCard.hass = {
   states: {
-    "sensor.planter_3_moisture": { state: "42", attributes: {} },
-    "sensor.planter_3_target_moisture": { state: "52", attributes: {} },
-    "number.planter_3_fertilizer_steps": { state: "180", attributes: {} },
-    "number.planter_3_max_daily_dosing": { state: "300", attributes: {} },
+    "sensor.watering_io_planter_3_moisture": { state: "42", attributes: {} },
+    "sensor.watering_io_planter_3_target_moisture": { state: "52", attributes: {} },
+    "number.watering_io_planter_3_fertilizer_steps": { state: "180", attributes: {} },
+    "number.watering_io_planter_3_max_daily_dosing_s": { state: "300", attributes: {} },
   },
 };
 
