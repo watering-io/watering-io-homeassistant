@@ -1,5 +1,6 @@
-const CARD_VERSION = "0.1.23";
+const CARD_VERSION = "0.1.24";
 const MAX_FERTILIZER_STEPS = 100000;
+const MAX_DAILY_DOSING_SECONDS = 86400;
 const STATIC_BASE = "/watering_io_static";
 const UNKNOWN_STATES = new Set(["unknown", "unavailable", "", null, undefined]);
 const CROPS = [
@@ -35,6 +36,7 @@ const FORM_LABELS = {
   moisture_entity: "Moisture entity",
   target_entity: "Target entity",
   fertilizer_steps_entity: "Fertilizer steps entity",
+  max_daily_dosing_entity: "Max daily dosing entity",
   online_entity: "Online entity",
   watering_entity: "Watering entity",
   water_history_entity: "Water history entity",
@@ -213,6 +215,53 @@ function normalizeSteps(value) {
   return Math.round(clamp(number, 0, MAX_FERTILIZER_STEPS));
 }
 
+function candidateMaxDailyDosingEntity(entityId) {
+  if (!entityId?.startsWith("sensor.")) {
+    return undefined;
+  }
+  if (entityId.endsWith("_target_moisture")) {
+    return entityId.replace(/^sensor\./, "number.").replace(/_target_moisture$/, "_max_daily_dosing_s");
+  }
+  if (entityId.endsWith("_moisture")) {
+    return entityId.replace(/^sensor\./, "number.").replace(/_moisture$/, "_max_daily_dosing_s");
+  }
+  return undefined;
+}
+
+function maxDailyDosingEntityFromConfig(hass, config) {
+  if (config?.max_daily_dosing_entity) {
+    return config.max_daily_dosing_entity;
+  }
+
+  const planterId = planterIdFromConfig(config);
+  const candidates = [
+    candidateMaxDailyDosingEntity(config?.target_entity),
+    candidateMaxDailyDosingEntity(config?.moisture_entity),
+    planterId ? `number.planter_${planterId}_max_daily_dosing_s` : undefined,
+  ].filter(Boolean);
+
+  return candidates.find((entityId) => hass?.states?.[entityId]) || candidates[0];
+}
+
+function parseMaxDailyDosing(stateObj) {
+  if (isUnknown(stateObj)) {
+    return null;
+  }
+  const value = Number(stateObj.state);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return Math.round(clamp(value, 0, MAX_DAILY_DOSING_SECONDS));
+}
+
+function normalizeMaxDailyDosing(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  return Math.round(clamp(number, 0, MAX_DAILY_DOSING_SECONDS));
+}
+
 function parseWaterHistory(stateObj) {
   if (isUnknown(stateObj)) {
     return [];
@@ -298,6 +347,7 @@ class WateringIoPlanterCard extends HTMLElement {
     this._editingTarget = false;
     this._targetDraft = null;
     this._fertilizerStepsDraft = null;
+    this._maxDailyDosingDraft = null;
     this._targetError = "";
     this._targetSubmitting = false;
   }
@@ -318,6 +368,7 @@ class WateringIoPlanterCard extends HTMLElement {
         { name: "moisture_entity", required: true, selector: { entity: { domain: "sensor" } } },
         { name: "target_entity", required: true, selector: { entity: { domain: "sensor" } } },
         { name: "fertilizer_steps_entity", selector: { entity: { domain: "number" } } },
+        { name: "max_daily_dosing_entity", selector: { entity: { domain: "number" } } },
         { name: "online_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "watering_entity", selector: { entity: { domain: "binary_sensor" } } },
         { name: "water_history_entity", selector: { entity: { domain: "sensor" } } },
@@ -396,6 +447,7 @@ class WateringIoPlanterCard extends HTMLElement {
       this._editingTarget ? "editing" : "",
       this._targetDraft ?? "",
       this._fertilizerStepsDraft ?? "",
+      this._maxDailyDosingDraft ?? "",
       this._targetError || "",
       this._targetSubmitting ? "submitting" : "",
     ]);
@@ -424,6 +476,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const targetEditable = Boolean(planterId);
     const targetDraft = this._targetDraft ?? target ?? 50;
     const fertilizerStepsDraft = this._fertilizerStepsDraft;
+    const maxDailyDosingDraft = this._maxDailyDosingDraft;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -909,6 +962,10 @@ class WateringIoPlanterCard extends HTMLElement {
                     <label for="fertilizer-steps-input">Fertilizer steps</label>
                     <input id="fertilizer-steps-input" class="fertilizer-input" type="number" min="0" max="${MAX_FERTILIZER_STEPS}" step="1" value="${escapeHtml(fertilizerStepsDraft ?? "")}" aria-label="Fertilizer steps">
                   </div>
+                  <div class="dialog-field">
+                    <label for="max-daily-dosing-input">Max daily dosing (s)</label>
+                    <input id="max-daily-dosing-input" class="max-daily-dosing-input" type="number" min="0" max="${MAX_DAILY_DOSING_SECONDS}" step="1" value="${escapeHtml(maxDailyDosingDraft ?? "")}" aria-label="Max daily dosing seconds">
+                  </div>
                   <div class="dialog-error">${escapeHtml(this._targetError)}</div>
                   <div class="dialog-actions">
                     <button class="cancel" type="button" ${this._targetSubmitting ? "disabled" : ""}>Cancel</button>
@@ -935,8 +992,11 @@ class WateringIoPlanterCard extends HTMLElement {
     const target = parsePercent(entityState(this._hass, this.config.target_entity));
     const fertilizerStepsEntity = fertilizerStepsEntityFromConfig(this._hass, this.config);
     const fertilizerSteps = parseSteps(entityState(this._hass, fertilizerStepsEntity));
+    const maxDailyDosingEntity = maxDailyDosingEntityFromConfig(this._hass, this.config);
+    const maxDailyDosing = parseMaxDailyDosing(entityState(this._hass, maxDailyDosingEntity));
     this._targetDraft = target ?? 50;
     this._fertilizerStepsDraft = fertilizerSteps;
+    this._maxDailyDosingDraft = maxDailyDosing;
     this._targetError = "";
     this._editingTarget = true;
     this._render(true);
@@ -946,6 +1006,7 @@ class WateringIoPlanterCard extends HTMLElement {
     const range = this.shadowRoot.querySelector(".target-range");
     const input = this.shadowRoot.querySelector(".target-input");
     const fertilizerInput = this.shadowRoot.querySelector(".fertilizer-input");
+    const maxDailyDosingInput = this.shadowRoot.querySelector(".max-daily-dosing-input");
     const valueLabel = this.shadowRoot.querySelector(".dialog-value");
     const error = this.shadowRoot.querySelector(".dialog-error");
     const cancel = this.shadowRoot.querySelector(".dialog-actions .cancel");
@@ -977,6 +1038,16 @@ class WateringIoPlanterCard extends HTMLElement {
         error.textContent = "";
       }
     };
+    const updateMaxDailyDosingDraft = (value) => {
+      this._maxDailyDosingDraft = value === "" ? null : normalizeMaxDailyDosing(value);
+      this._targetError = "";
+      if (maxDailyDosingInput) {
+        maxDailyDosingInput.value = this._maxDailyDosingDraft ?? "";
+      }
+      if (error) {
+        error.textContent = "";
+      }
+    };
 
     if (range) {
       range.addEventListener("input", (event) => updateDraft(event.target.value));
@@ -986,6 +1057,9 @@ class WateringIoPlanterCard extends HTMLElement {
     }
     if (fertilizerInput) {
       fertilizerInput.addEventListener("input", (event) => updateFertilizerDraft(event.target.value));
+    }
+    if (maxDailyDosingInput) {
+      maxDailyDosingInput.addEventListener("input", (event) => updateMaxDailyDosingDraft(event.target.value));
     }
     if (cancel) {
       cancel.addEventListener("click", () => {
@@ -1014,6 +1088,9 @@ class WateringIoPlanterCard extends HTMLElement {
       };
       if (this._fertilizerStepsDraft !== null && this._fertilizerStepsDraft !== undefined) {
         data.fertilizer_steps = Number(this._fertilizerStepsDraft);
+      }
+      if (this._maxDailyDosingDraft !== null && this._maxDailyDosingDraft !== undefined) {
+        data.max_daily_dosing_s = Number(this._maxDailyDosingDraft);
       }
       await this._hass.callService("watering_io", "set_planter_settings", data);
       this._editingTarget = false;

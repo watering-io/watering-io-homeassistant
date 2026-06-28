@@ -77,6 +77,34 @@ assert.equal(
   "number.custom_fertilizer_dose",
 );
 
+assert.equal(
+  context.maxDailyDosingEntityFromConfig(
+    {
+      states: {
+        "number.planter_3_max_daily_dosing_s": { state: "300" },
+      },
+    },
+    { target_entity: "sensor.planter_3_target_moisture" },
+  ),
+  "number.planter_3_max_daily_dosing_s",
+);
+
+assert.equal(
+  context.maxDailyDosingEntityFromConfig(
+    {
+      states: {
+        "number.planter_3_max_daily_dosing_s": { state: "300" },
+        "number.custom_daily_cap": { state: "600" },
+      },
+    },
+    {
+      target_entity: "sensor.planter_3_target_moisture",
+      max_daily_dosing_entity: "number.custom_daily_cap",
+    },
+  ),
+  "number.custom_daily_cap",
+);
+
 assert.ok(Card, "card should register itself as a custom element");
 
 const renderedCard = new Card();
@@ -90,6 +118,7 @@ renderedCard.hass = {
     "sensor.planter_3_moisture": { state: "42", attributes: {} },
     "sensor.planter_3_target_moisture": { state: "52", attributes: {} },
     "number.planter_3_fertilizer_steps": { state: "180", attributes: {} },
+    "number.planter_3_max_daily_dosing_s": { state: "300", attributes: {} },
   },
 };
 
@@ -100,6 +129,8 @@ assert.doesNotMatch(renderedCard.shadowRoot.innerHTML, /180 steps/);
 renderedCard._openTargetEditor();
 assert.match(renderedCard.shadowRoot.innerHTML, />Fertilizer steps</);
 assert.match(renderedCard.shadowRoot.innerHTML, /class="fertilizer-input"/);
+assert.match(renderedCard.shadowRoot.innerHTML, />Max daily dosing \(s\)</);
+assert.match(renderedCard.shadowRoot.innerHTML, /class="max-daily-dosing-input"/);
 
 const card = new Card();
 const calls = [];
@@ -113,6 +144,7 @@ card._render = () => {};
 card._editingTarget = true;
 card._targetDraft = 52;
 card._fertilizerStepsDraft = 180;
+card._maxDailyDosingDraft = 300;
 
 await card._savePlanterSettings();
 
@@ -124,6 +156,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
       planter_id: 3,
       target_moisture: 52,
       fertilizer_steps: 180,
+      max_daily_dosing_s: 300,
     },
   },
 ]);

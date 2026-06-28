@@ -54,3 +54,14 @@ set_planter_settings:
           max: 100000
           step: 1
           mode: box
+    max_daily_dosing_s:
+      name: Max daily dosing
+      description: New automatic watering cap in seconds. Use 0 to disable the cap.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 86400
+          step: 1
+          unit_of_measurement: s
+          mode: box

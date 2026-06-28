@@ -256,6 +256,14 @@ class DosingHelperTests(unittest.TestCase):
             },
         )
 
+    def test_set_planter_settings_service_accepts_max_daily_dosing(self) -> None:
+        source = (ROOT / "custom_components/watering_io/__init__.py").read_text(encoding="utf-8")
+
+        self.assertIn('max_daily_dosing_s = call.data.get("max_daily_dosing_s")', source)
+        self.assertIn("max_daily_dosing_s=max_daily_dosing_s", source)
+        self.assertIn('vol.Optional("max_daily_dosing_s")', source)
+        self.assertIn("vol.Range(min=0, max=MAX_DAILY_DOSING_SECONDS)", source)
+
     def test_planter_config_set_payload_requires_complete_config(self) -> None:
         config = {
             "planter_id": 3,

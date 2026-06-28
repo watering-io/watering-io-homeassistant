@@ -80,7 +80,7 @@ The integration publishes planter configuration commands to:
 
 The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_route`, `target_moisture`, `fertilizer_steps`, `max_daily_dosing_s`, and `hysteresis` to the hub. The integration keeps its planter cache from retained `<root>/config/planters` and stores the latest ack received below `<root>/ack/#`.
 
-The integration also exposes `watering_io.set_target_moisture` and `watering_io.set_planter_settings` services. `set_planter_settings` accepts `planter_id` plus `target_moisture` and/or `fertilizer_steps`, preserves the cached planter config values, and publishes one full update to `<root>/cmd/config/planters/set`.
+The integration also exposes `watering_io.set_target_moisture` and `watering_io.set_planter_settings` services. `set_planter_settings` accepts `planter_id` plus `target_moisture`, `fertilizer_steps`, and/or `max_daily_dosing_s`, preserves the cached planter config values, and publishes one full update to `<root>/cmd/config/planters/set`.
 
 Each Planter device page also exposes editable number controls for target moisture, fertilizer steps, and max daily dosing seconds. These controls preserve the cached planter config and publish the full planter update command with only the edited value changed.
 
@@ -132,9 +132,10 @@ online_entity: binary_sensor.planter_1_online
 watering_entity: binary_sensor.planter_1_watering
 water_history_entity: sensor.planter_1_daily_water
 fertilizer_steps_entity: number.planter_1_fertilizer_steps
+max_daily_dosing_entity: number.planter_1_max_daily_dosing_s
 ```
 
-The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor for target moisture and fertilizer steps. `fertilizer_steps_entity` is optional when entity IDs follow the integration defaults. Saving calls `watering_io.set_planter_settings`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only those edited values changed, then refreshes the cached planter config.
+The card always displays `target_entity`, which comes from the planter MQTT status topic. Tapping the target value opens a small editor for target moisture, fertilizer steps, and max daily dosing seconds. `fertilizer_steps_entity` and `max_daily_dosing_entity` are optional when entity IDs follow the integration defaults. Saving calls `watering_io.set_planter_settings`, which publishes the full planter config to `<root>/cmd/config/planters/set` with only those edited values changed, then refreshes the cached planter config.
 
 The status chip shows `Watering` while the planter is watering, `Maxed` when the daily dosing cap is reached, and `Idle` otherwise.
 
@@ -172,7 +173,7 @@ Available crop presets:
 After installing or updating the integration and restarting Home Assistant, add this dashboard resource:
 
 ```text
-URL: /watering_io_static/watering-io-planter-card.js?v=0.1.21
+URL: /watering_io_static/watering-io-planter-card.js?v=0.1.24
 Resource type: JavaScript module
 ```
 

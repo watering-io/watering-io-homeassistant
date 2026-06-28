@@ -24,6 +24,7 @@ SERVICES_REGISTERED = "services_registered"
 FRONTEND_URL_PATH = "/watering_io_static"
 FRONTEND_PATH = Path(__file__).parent / "frontend"
 MAX_FERTILIZER_STEPS = 100000
+MAX_DAILY_DOSING_SECONDS = 86400
 
 SERVICE_SET_PLANTER_SETTINGS = "set_planter_settings"
 SERVICE_SET_TARGET_MOISTURE = "set_target_moisture"
@@ -100,7 +101,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
         planter_id = str(call.data["planter_id"])
         target_moisture = call.data.get("target_moisture")
         fertilizer_steps = call.data.get("fertilizer_steps")
-        if target_moisture is None and fertilizer_steps is None:
+        max_daily_dosing_s = call.data.get("max_daily_dosing_s")
+        if target_moisture is None and fertilizer_steps is None and max_daily_dosing_s is None:
             raise HomeAssistantError("At least one planter setting must be provided")
 
         await _async_update_planter_settings(
@@ -108,6 +110,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
             planter_id,
             target_moisture=float(target_moisture) if target_moisture is not None else None,
             fertilizer_steps=int(fertilizer_steps) if fertilizer_steps is not None else None,
+            max_daily_dosing_s=int(max_daily_dosing_s) if max_daily_dosing_s is not None else None,
         )
 
     hass.services.async_register(
@@ -124,6 +127,10 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 vol.Optional("fertilizer_steps"): vol.All(
                     vol.Coerce(int),
                     vol.Range(min=0, max=MAX_FERTILIZER_STEPS),
+                ),
+                vol.Optional("max_daily_dosing_s"): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=0, max=MAX_DAILY_DOSING_SECONDS),
                 ),
             }
         ),
@@ -151,6 +158,7 @@ async def _async_update_planter_settings(
     *,
     target_moisture: float | None = None,
     fertilizer_steps: int | None = None,
+    max_daily_dosing_s: int | None = None,
 ) -> None:
     """Publish a full planter config with selected settings changed."""
     coordinator = _coordinator_for_planter(hass, planter_id)
@@ -172,6 +180,7 @@ async def _async_update_planter_settings(
             config,
             target_moisture=target_moisture,
             fertilizer_steps=fertilizer_steps,
+            max_daily_dosing_s=max_daily_dosing_s,
         )
     except (TypeError, ValueError) as err:
         raise HomeAssistantError(f"Planter {planter_id} config is incomplete: {err}") from err
