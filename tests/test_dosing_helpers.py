@@ -84,6 +84,14 @@ class DosingHelperTests(unittest.TestCase):
             "greenhouse",
         )
 
+    def test_coordinator_accepts_schema_v2_and_v3(self) -> None:
+        source = (ROOT / "custom_components/watering_io/coordinator.py").read_text(encoding="utf-8")
+
+        self.assertIn("def _schema_version_is_supported", source)
+        self.assertIn("return float(value) in (2.0, 3.0)", source)
+        self.assertIn("if not _schema_version_is_supported(schema_version):", source)
+        self.assertNotIn("_schema_version_is_v2", source)
+
     def test_non_hub_topics_do_not_extract_hub_id(self) -> None:
         self.assertIsNone(
             helpers.extract_hub_id_from_topic("watering.io", "watering.io/other/info")

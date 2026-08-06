@@ -1,4 +1,4 @@
-"""Coordinator for Watering.IO MQTT schema V2."""
+"""Coordinator for Watering.IO MQTT schema V2/V3."""
 
 from __future__ import annotations
 
@@ -45,9 +45,9 @@ def _configured_topic_root(topic_prefix: str) -> tuple[str, str | None]:
     return root.rstrip("/"), hub_id or None
 
 
-def _schema_version_is_v2(value: Any) -> bool:
+def _schema_version_is_supported(value: Any) -> bool:
     try:
-        return float(value) == 2.0
+        return float(value) in (2.0, 3.0)
     except (TypeError, ValueError):
         return False
 
@@ -375,7 +375,7 @@ class WateringIoCoordinator:
         if not isinstance(data, dict) or not self._accept_hub_topic(msg.topic, data):
             return
         schema_version = _first_value(data, "schema_version", "schemaVersion")
-        if not _schema_version_is_v2(schema_version):
+        if not _schema_version_is_supported(schema_version):
             _LOGGER.warning("Unsupported schema_version: %s", schema_version)
             return
         self.state.schema = data
