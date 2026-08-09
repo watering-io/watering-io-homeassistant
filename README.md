@@ -47,10 +47,11 @@ The integration also listens for V2/V3 event and ack topics:
 
 Entities are created for:
 
-- System sensors: uptime, Wi-Fi RSSI, bus current, input current, firmware/build diagnostics
+- System sensors: uptime, Wi-Fi RSSI, reset diagnostics, free heap, bus current in amps, input current in amps, input voltage, firmware/build diagnostics
+- System binary sensors: SW1 pressed
 - Schedule status sensors: phase, local date, schedule start times, and fertilizer run details
 - Schedule binary sensors: schedule enabled, automatic moisture allowed, and time synced
-- Pump binary sensors
+- Pump binary sensors from the nested pump status payload
 - Per-planter sensors and binary sensors
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture, temperature, online state, and scan stability diagnostics

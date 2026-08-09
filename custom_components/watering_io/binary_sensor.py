@@ -16,6 +16,9 @@ SCHEDULE_BINARY_FIELDS = [
     ("schedule_auto_moisture_allowed", "Schedule auto moisture allowed", ("auto_moisture_allowed",)),
     ("schedule_time_synced", "Schedule time synced", ("time_synced",)),
 ]
+SYSTEM_BINARY_FIELDS = [
+    ("sw1_pressed", "SW1 pressed", ("sw1_pressed",)),
+]
 PLANTER_BINARY_FIELDS = ["watering", "online", "daily_dosing_cap_reached"]
 
 
@@ -35,9 +38,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         if not static_added:
             new_entities.extend(
                 [
-                    PumpBinarySensor(coordinator, "pump_a", "pump_a"),
-                    PumpBinarySensor(coordinator, "pump_b", "pump_b"),
-                    PumpBinarySensor(coordinator, "any_on", "pump_any"),
+                    PumpBinarySensor(coordinator, ("pump1", "on"), "pump_a"),
+                    PumpBinarySensor(coordinator, ("pump2", "on"), "pump_b"),
+                    PumpBinarySensor(coordinator, ("any_on",), "pump_any"),
+                    *[
+                        SystemBinarySensor(coordinator, unique_suffix, name, path)
+                        for unique_suffix, name, path in SYSTEM_BINARY_FIELDS
+                    ],
                     *[
                         ScheduleBinarySensor(coordinator, unique_suffix, name, path)
                         for unique_suffix, name, path in SCHEDULE_BINARY_FIELDS
@@ -83,17 +90,17 @@ class PumpBinarySensor(WateringEntity, BinarySensorEntity):
     def __init__(
         self,
         coordinator: WateringIoCoordinator,
-        field: str,
+        path: tuple[str, ...],
         suffix: str,
     ) -> None:
         super().__init__(coordinator)
-        self.field = field
+        self.path = path
         self._attr_name = suffix
         self._attr_unique_id = f"{coordinator.stable_unique_prefix}_{suffix}"
 
     @property
     def is_on(self):
-        return bool(self.coordinator.state.pumps_status.get(self.field, False))
+        return bool(nested_value(self.coordinator.state.pumps_status, self.path))
 
 
 class ScheduleBinarySensor(WateringEntity, BinarySensorEntity):
@@ -112,6 +119,24 @@ class ScheduleBinarySensor(WateringEntity, BinarySensorEntity):
     @property
     def is_on(self):
         return coerce_bool(nested_value(self.coordinator.state.schedule_status, self.path))
+
+
+class SystemBinarySensor(WateringEntity, BinarySensorEntity):
+    def __init__(
+        self,
+        coordinator: WateringIoCoordinator,
+        unique_suffix: str,
+        name: str,
+        path: tuple[str, ...],
+    ) -> None:
+        super().__init__(coordinator)
+        self.path = path
+        self._attr_name = name
+        self._attr_unique_id = f"{coordinator.stable_unique_prefix}_system_{unique_suffix}"
+
+    @property
+    def is_on(self):
+        return coerce_bool(nested_value(self.coordinator.state.system_status, self.path))
 
 
 class PlanterBinarySensor(WateringPlanterEntity, BinarySensorEntity):

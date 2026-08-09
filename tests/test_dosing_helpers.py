@@ -30,10 +30,32 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('"today_scans": ("today_scans", "todayScans")', source)
         self.assertIn('"today_missed_scans": ("today_missed_scans", "todayMissedScans")', source)
 
+    def test_system_input_voltage_and_nested_pump_status_are_exposed(self) -> None:
+        sensor_source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
+        binary_source = (ROOT / "custom_components/watering_io/binary_sensor.py").read_text(encoding="utf-8")
+
+        self.assertIn('"bus_current_a"', sensor_source)
+        self.assertIn('"input_current_a"', sensor_source)
+        self.assertIn('"boot_count"', sensor_source)
+        self.assertIn('"reset_reason"', sensor_source)
+        self.assertIn('"reset_reason_name"', sensor_source)
+        self.assertIn('"free_heap"', sensor_source)
+        self.assertIn('"boot_count": ("boot_count", "bootCount")', sensor_source)
+        self.assertIn('"reset_reason_name": ("reset_reason_name", "resetReasonName")', sensor_source)
+        self.assertIn('CURRENT_FIELDS = {"bus_current_a", "input_current_a"}', sensor_source)
+        self.assertIn('"input_voltage"', sensor_source)
+        self.assertIn('VOLTAGE_FIELDS = {"input_voltage"}', sensor_source)
+        self.assertIn('UnitOfElectricPotential.VOLT', sensor_source)
+        self.assertIn('PumpBinarySensor(coordinator, ("pump1", "on"), "pump_a")', binary_source)
+        self.assertIn('PumpBinarySensor(coordinator, ("pump2", "on"), "pump_b")', binary_source)
+        self.assertIn('("sw1_pressed", "SW1 pressed", ("sw1_pressed",))', binary_source)
+        self.assertIn("SystemBinarySensor(coordinator, unique_suffix, name, path)", binary_source)
+        self.assertIn("nested_value(self.coordinator.state.system_status, self.path)", binary_source)
+        self.assertIn("nested_value(self.coordinator.state.pumps_status, self.path)", binary_source)
+
     def test_new_planter_status_payload_dosing_fields(self) -> None:
         payload = {
             "hub_id": "greenhouse",
-            "device_id": "watering-001122334455",
             "planter_id": 3,
             "moisture": 42,
             "target_moisture": 45.0,

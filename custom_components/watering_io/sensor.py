@@ -5,6 +5,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfElectricCurrent,
+    UnitOfElectricPotential,
     UnitOfTemperature,
     UnitOfTime,
 )
@@ -28,8 +29,13 @@ from .helpers import (
 SYSTEM_FIELDS = [
     "uptime_s",
     "wifi_rssi",
-    "bus_current",
-    "input_current",
+    "boot_count",
+    "reset_reason",
+    "reset_reason_name",
+    "free_heap",
+    "bus_current_a",
+    "input_current_a",
+    "input_voltage",
     "firmware_version",
     "build_git",
     "build_commit",
@@ -69,11 +75,23 @@ SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missed_scans", "toda
 PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
 SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
-CURRENT_FIELDS = {"bus_current", "input_current"}
+CURRENT_FIELDS = {"bus_current_a", "input_current_a"}
+VOLTAGE_FIELDS = {"input_voltage"}
 DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s", "max_daily_dosing_s", "daily_dosing_remaining_s"}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
-NUMERIC_FIELDS = {"last_seen_s", "missed_scans", "today_scans", "today_missed_scans", *CURRENT_FIELDS, *DURATION_FIELDS}
+NUMERIC_FIELDS = {
+    "boot_count",
+    "reset_reason",
+    "free_heap",
+    "last_seen_s",
+    "missed_scans",
+    "today_scans",
+    "today_missed_scans",
+    *CURRENT_FIELDS,
+    *VOLTAGE_FIELDS,
+    *DURATION_FIELDS,
+}
 SCHEDULE_NUMERIC_FIELDS = {
     "fertilizer_current_planter_id",
     "fertilizer_completed_count",
@@ -83,8 +101,13 @@ SCHEDULE_NUMERIC_FIELDS = {
 FIELD_ALIASES = {
     "uptime_s": ("uptime_s", "uptime"),
     "wifi_rssi": ("wifi_rssi", "wifiRssi"),
-    "bus_current": ("bus_current", "busCurrent"),
-    "input_current": ("input_current", "inputCurrent"),
+    "boot_count": ("boot_count", "bootCount"),
+    "reset_reason": ("reset_reason", "resetReason"),
+    "reset_reason_name": ("reset_reason_name", "resetReasonName"),
+    "free_heap": ("free_heap", "freeHeap"),
+    "bus_current_a": ("bus_current_a", "bus_current", "busCurrent"),
+    "input_current_a": ("input_current_a", "input_current", "inputCurrent"),
+    "input_voltage": ("input_voltage", "inputVoltage"),
     "firmware_version": ("firmware_version", "firmwareVersion"),
     "build_git": ("build_git", "buildGit"),
     "build_commit": ("build_commit", "buildCommit"),
@@ -141,6 +164,10 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
     elif field in CURRENT_FIELDS:
         entity._attr_device_class = SensorDeviceClass.CURRENT
         entity._attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
+        entity._attr_state_class = SensorStateClass.MEASUREMENT
+    elif field in VOLTAGE_FIELDS:
+        entity._attr_device_class = SensorDeviceClass.VOLTAGE
+        entity._attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
         entity._attr_state_class = SensorStateClass.MEASUREMENT
     elif field in DURATION_FIELDS:
         duration_device_class = getattr(SensorDeviceClass, "DURATION", None)
