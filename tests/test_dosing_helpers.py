@@ -106,6 +106,20 @@ class DosingHelperTests(unittest.TestCase):
             "greenhouse",
         )
 
+    def test_configured_topic_root_extracts_embedded_hub_id(self) -> None:
+        self.assertEqual(
+            helpers.configured_topic_root("watering.io/hubs/greenhouse"),
+            ("watering.io", "greenhouse"),
+        )
+
+    def test_config_flow_exposes_explicit_hub_id(self) -> None:
+        source = (ROOT / "custom_components/watering_io/config_flow.py").read_text(encoding="utf-8")
+
+        self.assertIn('CONF_HUB_ID = "hub_id"', (ROOT / "custom_components/watering_io/const.py").read_text(encoding="utf-8"))
+        self.assertIn("vol.Optional(CONF_HUB_ID, default=\"\")", source)
+        self.assertIn("def async_step_hub_settings", source)
+        self.assertIn("return f\"{root}::hub::{hub_id.strip().lower()}\"", source)
+
     def test_coordinator_accepts_schema_v2_and_v3(self) -> None:
         source = (ROOT / "custom_components/watering_io/coordinator.py").read_text(encoding="utf-8")
 

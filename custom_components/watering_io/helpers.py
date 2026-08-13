@@ -5,6 +5,18 @@ from __future__ import annotations
 from typing import Any
 
 
+def configured_topic_root(topic_prefix: str) -> tuple[str, str | None]:
+    """Return the MQTT discovery root and optional hub id from a configured prefix."""
+    prefix = topic_prefix.strip().rstrip("/")
+    marker = "/hubs/"
+    if marker not in prefix:
+        return prefix, None
+
+    root, hub_suffix = prefix.split(marker, 1)
+    hub_id = hub_suffix.split("/", 1)[0].strip()
+    return root.rstrip("/"), hub_id or None
+
+
 def extract_planter_id(item: Any) -> str | None:
     """Extract a planter id from mixed schema formats."""
     if isinstance(item, dict):
