@@ -17,8 +17,8 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CONF_PUMP_1_FLOW_ML_PER_S, DEFAULT_PUMP_1_FLOW_ML_PER_S, DOMAIN
-from .helpers import extract_hub_id_from_topic, extract_planter_id, extract_pump_id, extract_sensor_id
+from .const import CONF_HUB_ID, CONF_PUMP_1_FLOW_ML_PER_S, DEFAULT_PUMP_1_FLOW_ML_PER_S, DOMAIN
+from .helpers import configured_topic_root, extract_hub_id_from_topic, extract_planter_id, extract_pump_id, extract_sensor_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,14 +35,7 @@ def _first_value(data: dict[str, Any], *keys: str) -> Any:
 
 def _configured_topic_root(topic_prefix: str) -> tuple[str, str | None]:
     """Return the discovery root and optional hub id from a configured prefix."""
-    prefix = topic_prefix.rstrip("/")
-    marker = "/hubs/"
-    if marker not in prefix:
-        return prefix, None
-
-    root, hub_suffix = prefix.split(marker, 1)
-    hub_id = hub_suffix.split("/", 1)[0].strip()
-    return root.rstrip("/"), hub_id or None
+    return configured_topic_root(topic_prefix)
 
 
 def _schema_version_is_supported(value: Any) -> bool:
@@ -104,7 +97,7 @@ class WateringIoCoordinator:
         self.hass = hass
         self.entry = entry
         self.prefix, configured_hub_id = _configured_topic_root(entry.data["topic_prefix"])
-        self.state = WateringState(hub_id=entry.data.get("hub_id") or configured_hub_id)
+        self.state = WateringState(hub_id=entry.data.get(CONF_HUB_ID) or configured_hub_id)
         self._unsubs: list = []
         self._subscribed_topics: set[tuple[str, str]] = set()
 
@@ -383,6 +376,7 @@ class WateringIoCoordinator:
 
         if not self.state.hub_id:
             self.state.hub_id = hub_id
+            _LOGGER.info("Watering.IO integration bound to discovered hub %s", hub_id)
             self.hass.async_create_task(self._subscribe_hub_topics())
 
         if topic_hub_id and payload_hub_id and str(payload_hub_id).strip() != topic_hub_id:

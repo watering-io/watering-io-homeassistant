@@ -8,9 +8,9 @@
 4. Search for **Watering.IO Hub** and install it.
 5. Restart Home Assistant.
 6. Go to **Settings > Devices & services > Add integration** and add **Watering.IO Hub**.
-7. Enter the MQTT root prefix. The default is `watering.io`.
+7. Enter the MQTT root prefix and hub id. The default prefix is `watering.io`.
 
-> Important: schemas V2 and V3 use `<prefix>/hubs/<hub_id>/...`. The integration discovers a hub from retained `<prefix>/hubs/+/schema` or `<prefix>/hubs/+/info` messages, then uses `hub_id` as the Home Assistant identity.
+> Important: schemas V2 and V3 use `<prefix>/hubs/<hub_id>/...`. If more than one hub exists on the MQTT broker, configure the hub id explicitly. Leaving the hub id empty keeps legacy auto-discovery from retained `<prefix>/hubs/+/schema` or `<prefix>/hubs/+/info` messages.
 
 ## MQTT Contract Integration
 
@@ -21,6 +21,8 @@ Use these placeholders throughout the docs:
 - `<prefix>`: MQTT root, usually `watering.io`
 - `<hub_id>`: logical Home Assistant hub identity
 - `<root>`: `<prefix>/hubs/<hub_id>`
+
+Each Home Assistant integration entry represents one hub. For two hubs on the same broker, add two Watering.IO Hub entries with the same `<prefix>` and different `<hub_id>` values. Existing setups that used a full prefix such as `watering.io/hubs/greenhouse` are normalized to prefix `watering.io` and hub id `greenhouse`.
 
 The integration subscribes to these retained topics:
 
