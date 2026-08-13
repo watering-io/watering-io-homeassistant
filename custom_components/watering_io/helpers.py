@@ -17,6 +17,18 @@ def extract_planter_id(item: Any) -> str | None:
     return text or None
 
 
+def extract_pump_id(item: Any) -> str | None:
+    """Extract a fixed pump id from mixed schema/config formats."""
+    if isinstance(item, dict):
+        value = item.get("pump_id", item.get("id"))
+    else:
+        value = item
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def extract_hub_id_from_topic(topic_prefix: str, topic: str) -> str | None:
     """Extract a V2 hub id from a Watering.IO hub topic."""
     hub_prefix = f"{topic_prefix.rstrip('/')}/hubs/"
@@ -123,6 +135,20 @@ def extract_sensor_id(item: Any) -> str | None:
     return text or None
 
 
+def _pump_config_value(config: dict[str, Any], key: str) -> Any:
+    aliases = {
+        "pump_id": ("pump_id", "id"),
+        "level_sensor_modbus_id": ("level_sensor_modbus_id", "level_sensor_id", "sensor_modbus_id"),
+        "low_level_threshold_percent": ("low_level_threshold_percent", "low_threshold_percent"),
+        "set_level_percent": ("set_level_percent", "set_level"),
+        "max_relay_on_time_s": ("max_relay_on_time_s", "max_relay_on_time_seconds"),
+    }
+    for alias in aliases.get(key, (key,)):
+        if config.get(alias) is not None:
+            return config.get(alias)
+    return None
+
+
 def _config_value(config: dict[str, Any], key: str) -> Any:
     aliases = {
         "planter_id": ("planter_id", "id"),
@@ -135,6 +161,67 @@ def _config_value(config: dict[str, Any], key: str) -> Any:
     for alias in aliases.get(key, (key,)):
         if config.get(alias) is not None:
             return config.get(alias)
+    return None
+
+
+def pump_config_set_payload(
+    config: dict[str, Any],
+    level_sensor_modbus_id: int | None = None,
+    low_level_threshold_percent: int | None = None,
+    set_level_percent: int | None = None,
+    max_relay_on_time_s: int | None = None,
+) -> dict[str, Any]:
+    """Build a fixed pump reservoir set payload with selected values updated."""
+    required_keys = (
+        "pump_id",
+        "level_sensor_modbus_id",
+        "low_level_threshold_percent",
+        "set_level_percent",
+        "max_relay_on_time_s",
+    )
+    missing = [key for key in required_keys if _pump_config_value(config, key) is None]
+    if missing:
+        raise ValueError(f"Missing pump config field(s): {', '.join(missing)}")
+
+    payload = {
+        "pump_id": int(_pump_config_value(config, "pump_id")),
+        "level_sensor_modbus_id": int(
+            level_sensor_modbus_id
+            if level_sensor_modbus_id is not None
+            else _pump_config_value(config, "level_sensor_modbus_id")
+        ),
+        "low_level_threshold_percent": int(
+            low_level_threshold_percent
+            if low_level_threshold_percent is not None
+            else _pump_config_value(config, "low_level_threshold_percent")
+        ),
+        "set_level_percent": int(
+            set_level_percent
+            if set_level_percent is not None
+            else _pump_config_value(config, "set_level_percent")
+        ),
+        "max_relay_on_time_s": int(
+            max_relay_on_time_s
+            if max_relay_on_time_s is not None
+            else _pump_config_value(config, "max_relay_on_time_s")
+        ),
+    }
+    return payload
+
+
+def pump_config_update_source(
+    config: dict[str, Any] | None,
+    status: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Return the first source complete enough for a safe pump config update."""
+    for candidate in (config, status):
+        if not candidate:
+            continue
+        try:
+            pump_config_set_payload(candidate)
+        except (TypeError, ValueError):
+            continue
+        return candidate
     return None
 
 

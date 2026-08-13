@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import SIGNAL_UPDATE, WateringIoCoordinator
-from .entity import WateringEntity, WateringPlanterEntity
+from .entity import WateringEntity, WateringPlanterEntity, WateringPumpEntity
 from .helpers import (
     coerce_numeric,
     daily_water_history,
@@ -71,13 +71,41 @@ PLANTER_FIELDS = [
     "next_dose_s",
     *PLANTER_DOSING_FIELDS,
 ]
-SENSOR_FIELDS = ["moisture", "temperature", "last_seen_s", "missed_scans", "today_scans", "today_missed_scans"]
-PERCENTAGE_FIELDS = {"moisture", "target_moisture"}
+SENSOR_FIELDS = [
+    "device_type",
+    "firmware_version",
+    "moisture",
+    "temperature",
+    "distance_mm",
+    "fill_level_percent",
+    "last_seen_s",
+    "missed_scans",
+    "today_scans",
+    "today_missed_scans",
+]
+PUMP_FIELDS = [
+    "level_sensor_modbus_id",
+    "fill_level_percent",
+    "distance_mm",
+    "low_level_threshold_percent",
+    "set_level_percent",
+    "max_relay_on_time_s",
+]
+MOISTURE_FIELDS = {"moisture", "target_moisture"}
+PERCENTAGE_FIELDS = {"fill_level_percent", "low_level_threshold_percent", "set_level_percent"}
 SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
+DISTANCE_FIELDS = {"distance_mm"}
 CURRENT_FIELDS = {"bus_current_a", "input_current_a"}
 VOLTAGE_FIELDS = {"input_voltage"}
-DURATION_FIELDS = {"uptime_s", "total_dosing_s", "next_dose_s", "max_daily_dosing_s", "daily_dosing_remaining_s"}
+DURATION_FIELDS = {
+    "uptime_s",
+    "total_dosing_s",
+    "next_dose_s",
+    "max_daily_dosing_s",
+    "daily_dosing_remaining_s",
+    "max_relay_on_time_s",
+}
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
 NUMERIC_FIELDS = {
@@ -88,8 +116,11 @@ NUMERIC_FIELDS = {
     "missed_scans",
     "today_scans",
     "today_missed_scans",
+    "device_type",
+    "level_sensor_modbus_id",
     *CURRENT_FIELDS,
     *VOLTAGE_FIELDS,
+    *DISTANCE_FIELDS,
     *DURATION_FIELDS,
 }
 SCHEDULE_NUMERIC_FIELDS = {
@@ -116,6 +147,13 @@ FIELD_ALIASES = {
     "missed_scans": ("missed_scans", "missedScans"),
     "today_scans": ("today_scans", "todayScans"),
     "today_missed_scans": ("today_missed_scans", "todayMissedScans"),
+    "device_type": ("device_type", "deviceType"),
+    "level_sensor_modbus_id": ("level_sensor_modbus_id", "levelSensorModbusId", "level_sensor_id"),
+    "distance_mm": ("distance_mm", "distanceMm"),
+    "fill_level_percent": ("fill_level_percent", "fillLevelPercent"),
+    "low_level_threshold_percent": ("low_level_threshold_percent", "lowThresholdPercent"),
+    "set_level_percent": ("set_level_percent", "setLevelPercent", "set_level"),
+    "max_relay_on_time_s": ("max_relay_on_time_s", "maxRelayOnTimeS", "max_relay_on_time_seconds"),
     "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
     "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
     "daily_dosing_remaining_s": ("daily_dosing_remaining_s", "dailyDosingRemainingS"),
@@ -137,7 +175,9 @@ def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | N
         return coerce_numeric(value)
     if field in {"max_daily_dosing_s", "daily_dosing_remaining_s"}:
         return coerce_numeric(value)
-    if field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS or field in TEMPERATURE_FIELDS:
+    if field in MOISTURE_FIELDS or field in PERCENTAGE_FIELDS or field in SIGNAL_STRENGTH_FIELDS or field in TEMPERATURE_FIELDS:
+        return coerce_numeric(value)
+    if field in DISTANCE_FIELDS:
         return coerce_numeric(value)
     if field in NUMERIC_FIELDS:
         return coerce_numeric(value)
@@ -149,8 +189,11 @@ def _status_value(data: dict, field: str, coordinator: WateringIoCoordinator | N
 
 
 def _set_field_metadata(entity: SensorEntity, field: str) -> None:
-    if field in PERCENTAGE_FIELDS:
+    if field in MOISTURE_FIELDS:
         entity._attr_device_class = SensorDeviceClass.MOISTURE
+        entity._attr_native_unit_of_measurement = PERCENTAGE
+        entity._attr_state_class = SensorStateClass.MEASUREMENT
+    elif field in PERCENTAGE_FIELDS:
         entity._attr_native_unit_of_measurement = PERCENTAGE
         entity._attr_state_class = SensorStateClass.MEASUREMENT
     elif field in SIGNAL_STRENGTH_FIELDS:
@@ -160,6 +203,12 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
     elif field in TEMPERATURE_FIELDS:
         entity._attr_device_class = SensorDeviceClass.TEMPERATURE
         entity._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        entity._attr_state_class = SensorStateClass.MEASUREMENT
+    elif field in DISTANCE_FIELDS:
+        distance_device_class = getattr(SensorDeviceClass, "DISTANCE", None)
+        if distance_device_class is not None:
+            entity._attr_device_class = distance_device_class
+        entity._attr_native_unit_of_measurement = "mm"
         entity._attr_state_class = SensorStateClass.MEASUREMENT
     elif field in CURRENT_FIELDS:
         entity._attr_device_class = SensorDeviceClass.CURRENT
@@ -192,6 +241,7 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
     static_added = False
+    added_pumps: set[str] = set()
     added_planters: set[str] = set()
     added_sensors: set[str] = set()
 
@@ -213,6 +263,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 ]
             )
             static_added = True
+
+        for pump_id in ("1", "2"):
+            if pump_id in added_pumps or coordinator.pump_unique_id(pump_id) is None:
+                continue
+            added_pumps.add(pump_id)
+            for field in PUMP_FIELDS:
+                new_entities.append(WateringPumpSensor(coordinator, pump_id, field))
 
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
@@ -309,6 +366,24 @@ class WateringPlanterSensor(WateringPlanterEntity, SensorEntity):
             self.coordinator.pump_1_flow_ml_per_s,
         )
         return {"daily_water": history}
+
+
+class WateringPumpSensor(WateringPumpEntity, SensorEntity):
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str, field: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self.field = field
+        self._attr_name = field
+        self._attr_unique_id = f"{self.pump_unique_id}_{field}"
+        _set_field_metadata(self, field)
+
+    @property
+    def native_value(self):
+        status = self.coordinator.state.pumps_status.get(f"pump{self.pump_id}", {})
+        value = _status_value(status, self.field, self.coordinator)
+        if value is not None:
+            return value
+        config = self.coordinator.state.pump_configs.get(self.pump_id, {})
+        return _status_value(config, self.field, self.coordinator)
 
 
 class WateringDynamicSensor(WateringEntity, SensorEntity):

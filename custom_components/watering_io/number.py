@@ -10,22 +10,40 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import SIGNAL_UPDATE, WateringIoCoordinator
-from .entity import WateringPlanterEntity
+from .entity import WateringPlanterEntity, WateringPumpEntity
 from .helpers import (
     coerce_numeric,
     extract_planter_id,
     planter_config_set_payload,
     planter_config_update_source,
+    pump_config_set_payload,
+    pump_config_update_source,
 )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
+    pump_numbers_added = False
     added_planters: set[str] = set()
 
     @callback
     def add_dynamic() -> None:
+        nonlocal pump_numbers_added
         new_entities = []
+        if coordinator.hub_id_available and not pump_numbers_added:
+            for pump_id in ("1", "2"):
+                if coordinator.pump_unique_id(pump_id) is None:
+                    continue
+                new_entities.extend(
+                    [
+                        PumpLevelSensorIdNumber(coordinator, pump_id),
+                        PumpLowLevelThresholdNumber(coordinator, pump_id),
+                        PumpSetLevelNumber(coordinator, pump_id),
+                        PumpMaxRelayOnTimeNumber(coordinator, pump_id),
+                    ]
+                )
+            pump_numbers_added = True
+
         planter_ids = set(coordinator.state.planter_configs)
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
@@ -52,6 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     add_dynamic()
     if coordinator.hub_id_available:
         await coordinator.async_publish_planter_get()
+        await coordinator.async_publish_pump_config_get()
 
 
 def _update_source(coordinator: WateringIoCoordinator, planter_id: str) -> dict | None:
@@ -59,6 +78,116 @@ def _update_source(coordinator: WateringIoCoordinator, planter_id: str) -> dict 
         coordinator.state.planter_configs.get(planter_id),
         coordinator.state.planter_status.get(planter_id),
     )
+
+
+def _pump_update_source(coordinator: WateringIoCoordinator, pump_id: str) -> dict | None:
+    return pump_config_update_source(
+        coordinator.state.pump_configs.get(pump_id),
+        coordinator.state.pumps_status.get(f"pump{pump_id}"),
+    )
+
+
+class PumpReservoirNumber(WateringPumpEntity, NumberEntity):
+    config_key = ""
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._config_payload_available()
+
+    @property
+    def native_value(self) -> int | None:
+        for source in (
+            self.coordinator.state.pump_configs.get(self.pump_id, {}),
+            self.coordinator.state.pumps_status.get(f"pump{self.pump_id}", {}),
+        ):
+            value = coerce_numeric(source.get(self.config_key))
+            if value is not None:
+                return int(value)
+        return None
+
+    async def async_set_native_value(self, value: float) -> None:
+        config = _pump_update_source(self.coordinator, self.pump_id)
+        if not config:
+            raise HomeAssistantError(
+                f"Pump {self.pump_id} reservoir config is not loaded; refresh pump config before editing"
+            )
+
+        kwargs = {self.config_key: int(value)}
+        try:
+            payload = pump_config_set_payload(config, **kwargs)
+        except (TypeError, ValueError) as err:
+            raise HomeAssistantError(f"Pump {self.pump_id} reservoir config is incomplete: {err}") from err
+
+        await self.coordinator.async_publish_pump_config_set(**payload)
+        await self.coordinator.async_publish_pump_config_get()
+
+    def _config_payload_available(self) -> bool:
+        config = _pump_update_source(self.coordinator, self.pump_id)
+        if not config:
+            return False
+        try:
+            pump_config_set_payload(config)
+        except (TypeError, ValueError):
+            return False
+        return True
+
+
+class PumpLevelSensorIdNumber(PumpReservoirNumber):
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 16
+    _attr_native_step = 1
+    config_key = "level_sensor_modbus_id"
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self._attr_name = "Level sensor Modbus ID"
+        self._attr_unique_id = f"{self.pump_unique_id}_level_sensor_modbus_id_number"
+
+
+class PumpLowLevelThresholdNumber(PumpReservoirNumber):
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = PERCENTAGE
+    config_key = "low_level_threshold_percent"
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self._attr_name = "Low level threshold"
+        self._attr_unique_id = f"{self.pump_unique_id}_low_level_threshold_percent_number"
+
+
+class PumpSetLevelNumber(PumpReservoirNumber):
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = PERCENTAGE
+    config_key = "set_level_percent"
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self._attr_name = "Set level"
+        self._attr_unique_id = f"{self.pump_unique_id}_set_level_percent_number"
+
+
+class PumpMaxRelayOnTimeNumber(PumpReservoirNumber):
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 65535
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    config_key = "max_relay_on_time_s"
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self._attr_name = "Max refill on time"
+        self._attr_unique_id = f"{self.pump_unique_id}_max_relay_on_time_s_number"
 
 
 class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):

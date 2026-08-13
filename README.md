@@ -30,6 +30,7 @@ The integration subscribes to these retained topics:
 - `<root>/config/schedule`
 - `<root>/config/fertilizer`
 - `<root>/config/planters`
+- `<root>/config/pumps`
 - `<root>/status/system`
 - `<root>/status/schedule`
 - `<root>/status/pumps`
@@ -52,6 +53,7 @@ Entities are created for:
 - Schedule status sensors: phase, local date, schedule start times, and fertilizer run details
 - Schedule binary sensors: schedule enabled, automatic moisture allowed, and time synced
 - Pump binary sensors from the nested pump status payload
+- Pump reservoir level sensors, refill status, regulator error state, and editable reservoir config number entities for fixed Pump 1 and Pump 2
 - Per-planter sensors and binary sensors
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture, temperature, online state, and scan stability diagnostics
@@ -61,11 +63,14 @@ Entities are created for:
 Home Assistant device identifiers use `("watering_io", hub_id)`. ESP32 `device_id` values are treated as firmware metadata and are not used for entity unique IDs. Planter and sensor unique IDs are based on:
 
 - Planters: `<hub_id>_planter_<planter_id>_<metric>`
+- Pumps: `<hub_id>_pump_<pump_id>_<metric>`
 - Sensors: `<hub_id>_sensor_<sensor_modbus_id>_<metric>`
 
 The hub device name includes the logical hub id when the firmware-provided name does not already contain it. The hub id is also exposed as the hub device serial number in Home Assistant's device details.
 
 Planter entities are grouped under Home Assistant child devices named `Planter <planter_id>` with `via_device` pointing to the hub. These child device identifiers are derived from `hub_id` and `planter_id`, not from ESP32 hardware metadata.
+
+Pump reservoir entities are grouped under fixed Home Assistant child devices named `Pump 1` and `Pump 2`. The integration uses the retained `<root>/config/pumps` payload as the editable reservoir config source and the nested `<root>/status/pumps` payload as live status.
 
 ## Planter Configuration
 
@@ -84,6 +89,25 @@ The add/update form sends `planter_id`, `enabled`, `sensor_modbus_id`, `valve_ro
 The integration also exposes `watering_io.set_target_moisture` and `watering_io.set_planter_settings` services. `set_planter_settings` accepts `planter_id` plus `target_moisture`, `fertilizer_steps`, and/or `max_daily_dosing_s`, preserves the cached planter config values, and publishes one full update to `<root>/cmd/config/planters/set`.
 
 Each Planter device page also exposes editable number controls for target moisture, fertilizer steps, and max daily dosing seconds. These controls preserve the cached planter config and publish the full planter update command with only the edited value changed.
+
+## Pump Reservoir Configuration
+
+The integration exposes fixed reservoir controls for Pump 1 and Pump 2. These map to the hub's pump config topics:
+
+```text
+<root>/cmd/config/pumps/set
+<root>/cmd/config/pumps/get
+<root>/config/pumps
+```
+
+Editable number controls are available for:
+
+- `level_sensor_modbus_id`: Modbus ID of the level sensor, or `0` when no reservoir sensor is configured
+- `low_level_threshold_percent`: fill level where automatic refilling starts
+- `set_level_percent`: fill level where automatic refilling stops
+- `max_relay_on_time_s`: level sensor relay safety timeout in seconds
+
+The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, distance, refill relay state, and regulator error state.
 
 ## Dosing Measurements
 

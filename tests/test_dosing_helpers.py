@@ -380,6 +380,37 @@ class DosingHelperTests(unittest.TestCase):
 
         self.assertIsNone(helpers.planter_config_update_source(None, status))
 
+    def test_pump_config_set_payload_updates_only_set_level(self) -> None:
+        config = {
+            "pump_id": 1,
+            "level_sensor_modbus_id": 8,
+            "low_level_threshold_percent": 20,
+            "set_level_percent": 85,
+            "max_relay_on_time_s": 600,
+        }
+
+        self.assertEqual(
+            helpers.pump_config_set_payload(config, set_level_percent=90),
+            {
+                "pump_id": 1,
+                "level_sensor_modbus_id": 8,
+                "low_level_threshold_percent": 20,
+                "set_level_percent": 90,
+                "max_relay_on_time_s": 600,
+            },
+        )
+
+    def test_pump_config_update_source_uses_status_when_config_missing(self) -> None:
+        status = {
+            "pump_id": 2,
+            "level_sensor_modbus_id": 0,
+            "low_level_threshold_percent": 0,
+            "set_level_percent": 0,
+            "max_relay_on_time_s": 0,
+        }
+
+        self.assertIs(helpers.pump_config_update_source(None, status), status)
+
 
 if __name__ == "__main__":
     unittest.main()
