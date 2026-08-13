@@ -8,7 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import SIGNAL_UPDATE, WateringIoCoordinator
-from .entity import WateringEntity, WateringPlanterEntity
+from .entity import WateringEntity, WateringPlanterEntity, WateringPumpEntity
 from .helpers import coerce_bool, extract_planter_id, extract_sensor_id, nested_value
 
 SCHEDULE_BINARY_FIELDS = [
@@ -20,11 +20,13 @@ SYSTEM_BINARY_FIELDS = [
     ("sw1_pressed", "SW1 pressed", ("sw1_pressed",)),
 ]
 PLANTER_BINARY_FIELDS = ["watering", "online", "daily_dosing_cap_reached"]
+PUMP_RESERVOIR_BINARY_FIELDS = ["sensor_online", "refill_relay_on", "regulator_error"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: WateringIoCoordinator = hass.data[DOMAIN][entry.entry_id]
     static_added = False
+    added_pumps: set[str] = set()
     added_planters: set[str] = set()
     added_sensors: set[str] = set()
 
@@ -52,6 +54,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 ]
             )
             static_added = True
+
+        for pump_id in ("1", "2"):
+            if pump_id in added_pumps or coordinator.pump_unique_id(pump_id) is None:
+                continue
+            added_pumps.add(pump_id)
+            new_entities.extend(PumpReservoirBinarySensor(coordinator, pump_id, field) for field in PUMP_RESERVOIR_BINARY_FIELDS)
 
         for planter in coordinator.state.schema.get("entities", {}).get("planters", []):
             planter_id = extract_planter_id(planter)
@@ -101,6 +109,19 @@ class PumpBinarySensor(WateringEntity, BinarySensorEntity):
     @property
     def is_on(self):
         return bool(nested_value(self.coordinator.state.pumps_status, self.path))
+
+
+class PumpReservoirBinarySensor(WateringPumpEntity, BinarySensorEntity):
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str, field: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self.field = field
+        self._attr_name = field
+        self._attr_unique_id = f"{self.pump_unique_id}_{field}"
+
+    @property
+    def is_on(self):
+        value = nested_value(self.coordinator.state.pumps_status, (f"pump{self.pump_id}", self.field))
+        return coerce_bool(value) or False
 
 
 class ScheduleBinarySensor(WateringEntity, BinarySensorEntity):

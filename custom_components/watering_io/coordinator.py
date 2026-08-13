@@ -18,7 +18,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import CONF_PUMP_1_FLOW_ML_PER_S, DEFAULT_PUMP_1_FLOW_ML_PER_S, DOMAIN
-from .helpers import extract_hub_id_from_topic, extract_planter_id, extract_sensor_id
+from .helpers import extract_hub_id_from_topic, extract_planter_id, extract_pump_id, extract_sensor_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,6 +94,7 @@ class WateringState:
     planter_status: dict[str, dict[str, Any]] = field(default_factory=dict)
     sensor_status: dict[str, dict[str, Any]] = field(default_factory=dict)
     planter_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    pump_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
     last_config_ack: dict[str, Any] = field(default_factory=dict)
     topic_last_update: dict[str, datetime] = field(default_factory=dict)
 
@@ -158,6 +159,7 @@ class WateringIoCoordinator:
             or self.state.fertilizer_status
             or self.state.planter_status
             or self.state.sensor_status
+            or self.state.pump_configs
         ):
             return True
         return self.state.availability_online
@@ -203,6 +205,11 @@ class WateringIoCoordinator:
             return None
         return f"{self.hub_id}_sensor_{sensor_id}_{metric}"
 
+    def pump_unique_id(self, pump_id: str) -> str | None:
+        if not self.hub_id_available:
+            return None
+        return f"{self.hub_id}_pump_{pump_id}"
+
     def planter_device_info(self, planter_id: str, planter_unique_id: str | None = None) -> DeviceInfo:
         planter_identifier = planter_unique_id or self.planter_unique_id(planter_id)
         if planter_identifier is None or not self.hub_id_available:
@@ -212,6 +219,18 @@ class WateringIoCoordinator:
             name=f"Planter {planter_id}",
             manufacturer="Watering.IO",
             model="Watering.IO Planter",
+            via_device=(DOMAIN, self.hub_id),
+        )
+
+    def pump_device_info(self, pump_id: str, pump_unique_id: str | None = None) -> DeviceInfo:
+        pump_identifier = pump_unique_id or self.pump_unique_id(pump_id)
+        if pump_identifier is None or not self.hub_id_available:
+            return self.hub_device_info
+        return DeviceInfo(
+            identifiers={(DOMAIN, pump_identifier)},
+            name=f"Pump {pump_id}",
+            manufacturer="Watering.IO",
+            model="Watering.IO Pump",
             via_device=(DOMAIN, self.hub_id),
         )
 
@@ -265,6 +284,29 @@ class WateringIoCoordinator:
     async def async_publish_planter_get(self) -> None:
         await self._publish_json(f"{self._hub_root_required()}/cmd/config/planters/get", {})
 
+    async def async_publish_pump_config_set(
+        self,
+        *,
+        pump_id: int,
+        level_sensor_modbus_id: int,
+        low_level_threshold_percent: int,
+        set_level_percent: int,
+        max_relay_on_time_s: int,
+    ) -> None:
+        await self._publish_json(
+            f"{self._hub_root_required()}/cmd/config/pumps/set",
+            {
+                "pump_id": pump_id,
+                "level_sensor_modbus_id": level_sensor_modbus_id,
+                "low_level_threshold_percent": low_level_threshold_percent,
+                "set_level_percent": set_level_percent,
+                "max_relay_on_time_s": max_relay_on_time_s,
+            },
+        )
+
+    async def async_publish_pump_config_get(self) -> None:
+        await self._publish_json(f"{self._hub_root_required()}/cmd/config/pumps/get", {})
+
     async def _publish_json(self, topic: str, payload: dict[str, Any]) -> None:
         await mqtt.async_publish(
             self.hass,
@@ -290,6 +332,7 @@ class WateringIoCoordinator:
             (f"{root}/config/schedule", self._handle_schedule_config),
             (f"{root}/config/fertilizer", self._handle_fertilizer_config),
             (f"{root}/config/planters", self._handle_planter_configs),
+            (f"{root}/config/pumps", self._handle_pump_configs),
             (f"{root}/status/system", self._handle_status),
             (f"{root}/status/schedule", self._handle_status),
             (f"{root}/status/pumps", self._handle_status),
@@ -453,6 +496,20 @@ class WateringIoCoordinator:
             if planter_id and isinstance(config, dict):
                 configs[planter_id] = config
         self.state.planter_configs = configs
+        self._notify()
+
+    @callback
+    def _handle_pump_configs(self, msg: ReceiveMessage) -> None:
+        data = self._safe_json(msg.payload)
+        if not self._accept_hub_topic(msg.topic, data if isinstance(data, dict) else None):
+            return
+        self._mark_topic_update(msg.topic)
+        configs = {}
+        for config in _items_from_payload(data, "pumps", "configs"):
+            pump_id = extract_pump_id(config)
+            if pump_id and isinstance(config, dict):
+                configs[pump_id] = config
+        self.state.pump_configs = configs
         self._notify()
 
     @callback
