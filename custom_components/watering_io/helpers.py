@@ -180,6 +180,10 @@ def _pump_config_value(config: dict[str, Any], key: str) -> Any:
         "low_level_threshold_percent": ("low_level_threshold_percent", "low_threshold_percent"),
         "set_level_percent": ("set_level_percent", "set_level"),
         "max_relay_on_time_s": ("max_relay_on_time_s", "max_relay_on_time_seconds"),
+        "max_daily_refill_on_time_s": (
+            "max_daily_refill_on_time_s",
+            "max_daily_refill_on_time_seconds",
+        ),
     }
     for alias in aliases.get(key, (key,)):
         if config.get(alias) is not None:
@@ -208,6 +212,7 @@ def pump_config_set_payload(
     low_level_threshold_percent: int | None = None,
     set_level_percent: int | None = None,
     max_relay_on_time_s: int | None = None,
+    max_daily_refill_on_time_s: int | None = None,
 ) -> dict[str, Any]:
     """Build a fixed pump reservoir set payload with selected values updated."""
     required_keys = (
@@ -242,6 +247,11 @@ def pump_config_set_payload(
             max_relay_on_time_s
             if max_relay_on_time_s is not None
             else _pump_config_value(config, "max_relay_on_time_s")
+        ),
+        "max_daily_refill_on_time_s": int(
+            max_daily_refill_on_time_s
+            if max_daily_refill_on_time_s is not None
+            else (_pump_config_value(config, "max_daily_refill_on_time_s") or 0)
         ),
     }
     return payload

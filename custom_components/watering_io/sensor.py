@@ -91,7 +91,13 @@ PUMP_FIELDS = [
     "low_level_threshold_percent",
     "set_level_percent",
     "max_relay_on_time_s",
+    "max_daily_refill_on_time_s",
     "relay_on_total_seconds",
+    "refill_on_today_s",
+    "refill_remaining_today_s",
+    "refill_accounting_date",
+    "relay_counter_overflows",
+    "relay_counter_resets",
 ]
 MOISTURE_FIELDS = {"moisture", "target_moisture"}
 PERCENTAGE_FIELDS = {"fill_level_percent", "low_level_threshold_percent", "set_level_percent"}
@@ -107,7 +113,10 @@ DURATION_FIELDS = {
     "max_daily_dosing_s",
     "daily_dosing_remaining_s",
     "max_relay_on_time_s",
+    "max_daily_refill_on_time_s",
     "relay_on_total_seconds",
+    "refill_on_today_s",
+    "refill_remaining_today_s",
 }
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
@@ -121,6 +130,8 @@ NUMERIC_FIELDS = {
     "today_missed_scans",
     "device_type",
     "level_sensor_modbus_id",
+    "relay_counter_overflows",
+    "relay_counter_resets",
     *CURRENT_FIELDS,
     *VOLTAGE_FIELDS,
     *DISTANCE_FIELDS,
@@ -157,7 +168,17 @@ FIELD_ALIASES = {
     "low_level_threshold_percent": ("low_level_threshold_percent", "lowThresholdPercent"),
     "set_level_percent": ("set_level_percent", "setLevelPercent", "set_level"),
     "max_relay_on_time_s": ("max_relay_on_time_s", "maxRelayOnTimeS", "max_relay_on_time_seconds"),
+    "max_daily_refill_on_time_s": (
+        "max_daily_refill_on_time_s",
+        "maxDailyRefillOnTimeS",
+        "max_daily_refill_on_time_seconds",
+    ),
     "relay_on_total_seconds": ("relay_on_total_seconds", "relayOnTotalSeconds"),
+    "refill_on_today_s": ("refill_on_today_s", "refillOnTodayS"),
+    "refill_remaining_today_s": ("refill_remaining_today_s", "refillRemainingTodayS"),
+    "refill_accounting_date": ("refill_accounting_date", "refillAccountingDate"),
+    "relay_counter_overflows": ("relay_counter_overflows", "relayCounterOverflows"),
+    "relay_counter_resets": ("relay_counter_resets", "relayCounterResets"),
     "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
     "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
     "daily_dosing_remaining_s": ("daily_dosing_remaining_s", "dailyDosingRemainingS"),
