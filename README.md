@@ -60,6 +60,7 @@ Entities are created for:
 - Per-planter dosing sensors for total dosing time and calculated total water
 - Per-sensor moisture, temperature, level relay total runtime, online state, and scan stability diagnostics
 - Sensor rescan button publishing `{}` to `<root>/cmd/sensors/rescan`
+- Reservoir safety clear button publishing to `<root>/cmd/safety/clear_fault`
 - Per-planter target moisture, fertilizer steps, and max daily dosing number entities that publish updates through the planter config command
 
 Home Assistant device identifiers use `("watering_io", hub_id)`. ESP32 `device_id` values are treated as firmware metadata and are not used for entity unique IDs. Planter and sensor unique IDs are based on:
@@ -110,7 +111,9 @@ Editable number controls are available for:
 - `max_relay_on_time_s`: level sensor relay safety timeout in seconds
 - `max_daily_refill_on_time_s`: hub-side daily refill runtime budget in seconds; `0` disables the budget
 
-The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, distance, refill relay state, raw relay-on total seconds, hub-accounted refill seconds today, remaining daily refill budget, relay counter overflow/reset diagnostics, and regulator error state.
+The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, distance, refill relay state, raw relay-on total seconds, hub-accounted refill seconds today, remaining daily refill budget, latched refill safety fault state, relay counter overflow/reset diagnostics, and regulator error state.
+
+The hub-level **Clear reservoir safety faults** button clears latched reservoir safety faults through `<root>/cmd/safety/clear_fault`. It does not reset today's refill counter; use MQTT directly with `reset_refill_today: true` when you intentionally want to re-arm after inspecting the fault.
 
 ## Dosing Measurements
 

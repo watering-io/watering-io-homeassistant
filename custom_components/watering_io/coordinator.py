@@ -242,6 +242,17 @@ class WateringIoCoordinator:
             retain=False,
         )
 
+    async def async_publish_safety_clear_fault(
+        self,
+        *,
+        pump_id: int | None = None,
+        reset_refill_today: bool = False,
+    ) -> None:
+        payload: dict[str, Any] = {"reset_refill_today": reset_refill_today}
+        if pump_id is not None:
+            payload["pump_id"] = pump_id
+        await self._publish_json(f"{self._hub_root_required()}/cmd/safety/clear_fault", payload)
+
     async def async_publish_planter_set(
         self,
         *,

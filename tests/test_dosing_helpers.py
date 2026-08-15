@@ -34,6 +34,9 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('"max_daily_refill_on_time_s"', source)
         self.assertIn('"refill_on_today_s"', source)
         self.assertIn('"refill_remaining_today_s"', source)
+        self.assertIn('"refill_fault_reason"', source)
+        self.assertIn('"refill_fault_since_unix"', source)
+        self.assertIn('"refill_fault_date"', source)
         self.assertIn('"relay_counter_overflows"', source)
         self.assertIn('"relay_counter_resets"', source)
 
@@ -56,6 +59,8 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('PumpBinarySensor(coordinator, ("pump1", "on"), "pump_a")', binary_source)
         self.assertIn('PumpBinarySensor(coordinator, ("pump2", "on"), "pump_b")', binary_source)
         self.assertIn('"refill_daily_limit_reached"', binary_source)
+        self.assertIn('"refill_fault_latched"', binary_source)
+        self.assertIn('"bus_power_cutoff_requested"', binary_source)
         self.assertIn('"refill_accounting_time_synced"', binary_source)
         self.assertIn('("sw1_pressed", "SW1 pressed", ("sw1_pressed",))', binary_source)
         self.assertIn("SystemBinarySensor(coordinator, unique_suffix, name, path)", binary_source)
@@ -494,6 +499,16 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn("_attr_native_max_value = 86400", source)
         self.assertIn("max_daily_refill_on_time_s: int | None = None", coordinator_source)
         self.assertIn('payload["max_daily_refill_on_time_s"] = max_daily_refill_on_time_s', coordinator_source)
+
+    def test_reservoir_safety_clear_button_is_exposed(self) -> None:
+        button_source = (ROOT / "custom_components/watering_io/button.py").read_text(encoding="utf-8")
+        coordinator_source = (ROOT / "custom_components/watering_io/coordinator.py").read_text(encoding="utf-8")
+
+        self.assertIn("ClearReservoirSafetyFaultsButton(coordinator)", button_source)
+        self.assertIn("Clear reservoir safety faults", button_source)
+        self.assertIn("async_publish_safety_clear_fault", button_source)
+        self.assertIn("cmd/safety/clear_fault", coordinator_source)
+        self.assertIn('"reset_refill_today": reset_refill_today', coordinator_source)
 
 
 if __name__ == "__main__":

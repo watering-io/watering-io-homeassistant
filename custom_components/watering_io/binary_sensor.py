@@ -25,6 +25,8 @@ PUMP_RESERVOIR_BINARY_FIELDS = [
     "refill_relay_on",
     "regulator_error",
     "refill_daily_limit_reached",
+    "refill_fault_latched",
+    "bus_power_cutoff_requested",
     "refill_accounting_time_synced",
 ]
 

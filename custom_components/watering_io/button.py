@@ -20,7 +20,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         nonlocal added
         if added or not coordinator.hub_id_available:
             return
-        async_add_entities([SensorRescanButton(coordinator)])
+        async_add_entities(
+            [
+                SensorRescanButton(coordinator),
+                ClearReservoirSafetyFaultsButton(coordinator),
+            ]
+        )
         added = True
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_UPDATE, add_button))
@@ -35,3 +40,13 @@ class SensorRescanButton(WateringEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_publish_rescan()
+
+
+class ClearReservoirSafetyFaultsButton(WateringEntity, ButtonEntity):
+    def __init__(self, coordinator: WateringIoCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_name = "Clear reservoir safety faults"
+        self._attr_unique_id = f"{coordinator.stable_unique_prefix}_clear_reservoir_safety_faults"
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_publish_safety_clear_fault()
