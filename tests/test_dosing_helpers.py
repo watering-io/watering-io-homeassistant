@@ -29,6 +29,8 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('"missed_scans"', source)
         self.assertIn('"today_scans": ("today_scans", "todayScans")', source)
         self.assertIn('"today_missed_scans": ("today_missed_scans", "todayMissedScans")', source)
+        self.assertIn('"relay_on_total_seconds"', source)
+        self.assertIn('"relay_on_total_seconds": ("relay_on_total_seconds", "relayOnTotalSeconds")', source)
 
     def test_system_input_voltage_and_nested_pump_status_are_exposed(self) -> None:
         sensor_source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
