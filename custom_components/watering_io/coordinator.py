@@ -297,6 +297,7 @@ class WateringIoCoordinator:
         set_level_percent: int,
         max_relay_on_time_s: int,
         max_daily_refill_on_time_s: int | None = None,
+        reservoir_capacity_l: float | None = None,
     ) -> None:
         payload = {
             "pump_id": pump_id,
@@ -307,6 +308,8 @@ class WateringIoCoordinator:
         }
         if max_daily_refill_on_time_s is not None:
             payload["max_daily_refill_on_time_s"] = max_daily_refill_on_time_s
+        if reservoir_capacity_l is not None:
+            payload["reservoir_capacity_l"] = reservoir_capacity_l
         await self._publish_json(
             f"{self._hub_root_required()}/cmd/config/pumps/set",
             payload,

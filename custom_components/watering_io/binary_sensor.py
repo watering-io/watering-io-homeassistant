@@ -28,6 +28,8 @@ PUMP_RESERVOIR_BINARY_FIELDS = [
     "refill_fault_latched",
     "bus_power_cutoff_requested",
     "refill_accounting_time_synced",
+    "water_consumption_enabled",
+    "water_consumption_complete",
 ]
 
 

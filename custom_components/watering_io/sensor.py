@@ -8,6 +8,7 @@ from homeassistant.const import (
     UnitOfElectricPotential,
     UnitOfTemperature,
     UnitOfTime,
+    UnitOfVolume,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -78,6 +79,8 @@ SENSOR_FIELDS = [
     "temperature",
     "distance_mm",
     "fill_level_percent",
+    "min_distance_mm",
+    "max_distance_mm",
     "relay_on_total_seconds",
     "last_seen_s",
     "missed_scans",
@@ -88,6 +91,8 @@ PUMP_FIELDS = [
     "level_sensor_modbus_id",
     "fill_level_percent",
     "distance_mm",
+    "min_distance_mm",
+    "max_distance_mm",
     "low_level_threshold_percent",
     "set_level_percent",
     "max_relay_on_time_s",
@@ -101,12 +106,16 @@ PUMP_FIELDS = [
     "refill_fault_date",
     "relay_counter_overflows",
     "relay_counter_resets",
+    "reservoir_capacity_l",
+    "reservoir_volume_l",
+    "water_consumed_today_l",
+    "water_consumption_date",
 ]
 MOISTURE_FIELDS = {"moisture", "target_moisture"}
 PERCENTAGE_FIELDS = {"fill_level_percent", "low_level_threshold_percent", "set_level_percent"}
 SIGNAL_STRENGTH_FIELDS = {"wifi_rssi"}
 TEMPERATURE_FIELDS = {"temperature"}
-DISTANCE_FIELDS = {"distance_mm"}
+DISTANCE_FIELDS = {"distance_mm", "min_distance_mm", "max_distance_mm"}
 CURRENT_FIELDS = {"bus_current_a", "input_current_a"}
 VOLTAGE_FIELDS = {"input_voltage"}
 DURATION_FIELDS = {
@@ -123,6 +132,7 @@ DURATION_FIELDS = {
 }
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
+LITER_VOLUME_FIELDS = {"reservoir_capacity_l", "reservoir_volume_l", "water_consumed_today_l"}
 NUMERIC_FIELDS = {
     "boot_count",
     "reset_reason",
@@ -140,6 +150,7 @@ NUMERIC_FIELDS = {
     *VOLTAGE_FIELDS,
     *DISTANCE_FIELDS,
     *DURATION_FIELDS,
+    *LITER_VOLUME_FIELDS,
 }
 SCHEDULE_NUMERIC_FIELDS = {
     "fertilizer_current_planter_id",
@@ -168,6 +179,8 @@ FIELD_ALIASES = {
     "device_type": ("device_type", "deviceType"),
     "level_sensor_modbus_id": ("level_sensor_modbus_id", "levelSensorModbusId", "level_sensor_id"),
     "distance_mm": ("distance_mm", "distanceMm"),
+    "min_distance_mm": ("min_distance_mm", "minDistanceMm"),
+    "max_distance_mm": ("max_distance_mm", "maxDistanceMm"),
     "fill_level_percent": ("fill_level_percent", "fillLevelPercent"),
     "low_level_threshold_percent": ("low_level_threshold_percent", "lowThresholdPercent"),
     "set_level_percent": ("set_level_percent", "setLevelPercent", "set_level"),
@@ -186,6 +199,10 @@ FIELD_ALIASES = {
     "refill_fault_date": ("refill_fault_date", "refillFaultDate"),
     "relay_counter_overflows": ("relay_counter_overflows", "relayCounterOverflows"),
     "relay_counter_resets": ("relay_counter_resets", "relayCounterResets"),
+    "reservoir_capacity_l": ("reservoir_capacity_l", "reservoirCapacityL", "reservoir_capacity_liters"),
+    "reservoir_volume_l": ("reservoir_volume_l", "reservoirVolumeL"),
+    "water_consumed_today_l": ("water_consumed_today_l", "waterConsumedTodayL"),
+    "water_consumption_date": ("water_consumption_date", "waterConsumptionDate"),
     "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
     "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
     "daily_dosing_remaining_s": ("daily_dosing_remaining_s", "dailyDosingRemainingS"),
@@ -266,6 +283,16 @@ def _set_field_metadata(entity: SensorEntity, field: str) -> None:
         entity._attr_state_class = (
             SensorStateClass.TOTAL_INCREASING
             if field in TOTAL_INCREASING_FIELDS
+            else SensorStateClass.MEASUREMENT
+        )
+    elif field in LITER_VOLUME_FIELDS:
+        volume_device_class = getattr(SensorDeviceClass, "VOLUME", None)
+        if volume_device_class is not None:
+            entity._attr_device_class = volume_device_class
+        entity._attr_native_unit_of_measurement = UnitOfVolume.LITERS
+        entity._attr_state_class = (
+            SensorStateClass.TOTAL_INCREASING
+            if field == "water_consumed_today_l"
             else SensorStateClass.MEASUREMENT
         )
 

@@ -110,8 +110,9 @@ Editable number controls are available for:
 - `set_level_percent`: fill level where automatic refilling stops
 - `max_relay_on_time_s`: level sensor relay safety timeout in seconds
 - `max_daily_refill_on_time_s`: hub-side daily refill runtime budget in seconds; `0` disables the budget
+- `reservoir_capacity_l`: usable reservoir volume at the sensor's calibrated full distance; `0` disables volume accounting
 
-The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, distance, refill relay state, raw relay-on total seconds, hub-accounted refill seconds today, remaining daily refill budget, latched refill safety fault state, relay counter overflow/reset diagnostics, and regulator error state.
+The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, calibrated distances, current volume, water consumed today, whether that daily measurement is complete, refill relay state, raw relay-on total seconds, hub-accounted refill seconds today, remaining daily refill budget, latched refill safety fault state, relay counter overflow/reset diagnostics, and regulator error state.
 
 The hub-level **Clear reservoir safety faults** button clears latched reservoir safety faults through `<root>/cmd/safety/clear_fault`. It does not reset today's refill counter; use MQTT directly with `reset_refill_today: true` when you intentionally want to re-arm after inspecting the fault.
 

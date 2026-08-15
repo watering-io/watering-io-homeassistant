@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfTime, UnitOfVolume
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -41,6 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                         PumpSetLevelNumber(coordinator, pump_id),
                         PumpMaxRelayOnTimeNumber(coordinator, pump_id),
                         PumpMaxDailyRefillOnTimeNumber(coordinator, pump_id),
+                        PumpReservoirCapacityNumber(coordinator, pump_id),
                     ]
                 )
             pump_numbers_added = True
@@ -90,6 +91,7 @@ def _pump_update_source(coordinator: WateringIoCoordinator, pump_id: str) -> dic
 
 class PumpReservoirNumber(WateringPumpEntity, NumberEntity):
     config_key = ""
+    integer_value = True
 
     def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
         super().__init__(coordinator, pump_id)
@@ -99,14 +101,14 @@ class PumpReservoirNumber(WateringPumpEntity, NumberEntity):
         return super().available and self._config_payload_available()
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> int | float | None:
         for source in (
             self.coordinator.state.pump_configs.get(self.pump_id, {}),
             self.coordinator.state.pumps_status.get(f"pump{self.pump_id}", {}),
         ):
             value = coerce_numeric(source.get(self.config_key))
             if value is not None:
-                return int(value)
+                return int(value) if self.integer_value else float(value)
         return None
 
     async def async_set_native_value(self, value: float) -> None:
@@ -116,7 +118,7 @@ class PumpReservoirNumber(WateringPumpEntity, NumberEntity):
                 f"Pump {self.pump_id} reservoir config is not loaded; refresh pump config before editing"
             )
 
-        kwargs = {self.config_key: int(value)}
+        kwargs = {self.config_key: int(value) if self.integer_value else float(value)}
         try:
             payload = pump_config_set_payload(config, **kwargs)
         except (TypeError, ValueError) as err:
@@ -203,6 +205,21 @@ class PumpMaxDailyRefillOnTimeNumber(PumpReservoirNumber):
         super().__init__(coordinator, pump_id)
         self._attr_name = "Max daily refill on time"
         self._attr_unique_id = f"{self.pump_unique_id}_max_daily_refill_on_time_s_number"
+
+
+class PumpReservoirCapacityNumber(PumpReservoirNumber):
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100000
+    _attr_native_step = 0.1
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    config_key = "reservoir_capacity_l"
+    integer_value = False
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self._attr_name = "Reservoir capacity"
+        self._attr_unique_id = f"{self.pump_unique_id}_reservoir_capacity_l_number"
 
 
 class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):

@@ -39,6 +39,10 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('"refill_fault_date"', source)
         self.assertIn('"relay_counter_overflows"', source)
         self.assertIn('"relay_counter_resets"', source)
+        self.assertIn('"reservoir_capacity_l"', source)
+        self.assertIn('"reservoir_volume_l"', source)
+        self.assertIn('"water_consumed_today_l"', source)
+        self.assertIn('"water_consumption_date"', source)
 
     def test_system_input_voltage_and_nested_pump_status_are_exposed(self) -> None:
         sensor_source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
@@ -442,6 +446,7 @@ class DosingHelperTests(unittest.TestCase):
             "set_level_percent": 85,
             "max_relay_on_time_s": 600,
             "max_daily_refill_on_time_s": 64800,
+            "reservoir_capacity_l": 50.0,
         }
 
         self.assertEqual(
@@ -453,6 +458,7 @@ class DosingHelperTests(unittest.TestCase):
                 "set_level_percent": 90,
                 "max_relay_on_time_s": 600,
                 "max_daily_refill_on_time_s": 64800,
+                "reservoir_capacity_l": 50.0,
             },
         )
 
@@ -474,9 +480,12 @@ class DosingHelperTests(unittest.TestCase):
                 "set_level_percent": 85,
                 "max_relay_on_time_s": 600,
                 "max_daily_refill_on_time_s": 64800,
+                "reservoir_capacity_l": 0.0,
             },
         )
-        self.assertEqual(helpers.pump_config_set_payload(config)["max_daily_refill_on_time_s"], 0)
+        payload = helpers.pump_config_set_payload(config)
+        self.assertEqual(payload["max_daily_refill_on_time_s"], 0)
+        self.assertEqual(payload["reservoir_capacity_l"], 0.0)
 
     def test_pump_config_update_source_uses_status_when_config_missing(self) -> None:
         status = {
@@ -486,6 +495,7 @@ class DosingHelperTests(unittest.TestCase):
             "set_level_percent": 0,
             "max_relay_on_time_s": 0,
             "max_daily_refill_on_time_s": 0,
+            "reservoir_capacity_l": 0.0,
         }
 
         self.assertIs(helpers.pump_config_update_source(None, status), status)
@@ -499,6 +509,21 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn("_attr_native_max_value = 86400", source)
         self.assertIn("max_daily_refill_on_time_s: int | None = None", coordinator_source)
         self.assertIn('payload["max_daily_refill_on_time_s"] = max_daily_refill_on_time_s', coordinator_source)
+
+    def test_reservoir_capacity_number_and_consumption_entities_are_exposed(self) -> None:
+        number_source = (ROOT / "custom_components/watering_io/number.py").read_text(encoding="utf-8")
+        sensor_source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
+        binary_source = (ROOT / "custom_components/watering_io/binary_sensor.py").read_text(encoding="utf-8")
+        coordinator_source = (ROOT / "custom_components/watering_io/coordinator.py").read_text(encoding="utf-8")
+
+        self.assertIn("PumpReservoirCapacityNumber(coordinator, pump_id)", number_source)
+        self.assertIn('config_key = "reservoir_capacity_l"', number_source)
+        self.assertIn("_attr_native_step = 0.1", number_source)
+        self.assertIn("reservoir_capacity_l: float | None = None", coordinator_source)
+        self.assertIn('payload["reservoir_capacity_l"] = reservoir_capacity_l', coordinator_source)
+        self.assertIn('"reservoir_volume_l"', sensor_source)
+        self.assertIn('"water_consumed_today_l"', sensor_source)
+        self.assertIn('"water_consumption_complete"', binary_source)
 
     def test_reservoir_safety_clear_button_is_exposed(self) -> None:
         button_source = (ROOT / "custom_components/watering_io/button.py").read_text(encoding="utf-8")
