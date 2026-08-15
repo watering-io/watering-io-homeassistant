@@ -78,6 +78,7 @@ SENSOR_FIELDS = [
     "temperature",
     "distance_mm",
     "fill_level_percent",
+    "relay_on_total_seconds",
     "last_seen_s",
     "missed_scans",
     "today_scans",
@@ -90,6 +91,7 @@ PUMP_FIELDS = [
     "low_level_threshold_percent",
     "set_level_percent",
     "max_relay_on_time_s",
+    "relay_on_total_seconds",
 ]
 MOISTURE_FIELDS = {"moisture", "target_moisture"}
 PERCENTAGE_FIELDS = {"fill_level_percent", "low_level_threshold_percent", "set_level_percent"}
@@ -105,6 +107,7 @@ DURATION_FIELDS = {
     "max_daily_dosing_s",
     "daily_dosing_remaining_s",
     "max_relay_on_time_s",
+    "relay_on_total_seconds",
 }
 TOTAL_INCREASING_FIELDS = {"total_dosing_s", "total_water_ml"}
 VOLUME_FIELDS = {"total_water_ml", "daily_water"}
@@ -154,6 +157,7 @@ FIELD_ALIASES = {
     "low_level_threshold_percent": ("low_level_threshold_percent", "lowThresholdPercent"),
     "set_level_percent": ("set_level_percent", "setLevelPercent", "set_level"),
     "max_relay_on_time_s": ("max_relay_on_time_s", "maxRelayOnTimeS", "max_relay_on_time_seconds"),
+    "relay_on_total_seconds": ("relay_on_total_seconds", "relayOnTotalSeconds"),
     "next_dose_s": ("next_dose_in_s", "next_dose_s", "nextDoseInS"),
     "max_daily_dosing_s": ("max_daily_dosing_s", "maxDailyDosingS"),
     "daily_dosing_remaining_s": ("daily_dosing_remaining_s", "dailyDosingRemainingS"),

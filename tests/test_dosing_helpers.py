@@ -29,6 +29,8 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('"missed_scans"', source)
         self.assertIn('"today_scans": ("today_scans", "todayScans")', source)
         self.assertIn('"today_missed_scans": ("today_missed_scans", "todayMissedScans")', source)
+        self.assertIn('"relay_on_total_seconds"', source)
+        self.assertIn('"relay_on_total_seconds": ("relay_on_total_seconds", "relayOnTotalSeconds")', source)
 
     def test_system_input_voltage_and_nested_pump_status_are_exposed(self) -> None:
         sensor_source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
@@ -119,6 +121,32 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn("vol.Optional(CONF_HUB_ID, default=\"\")", source)
         self.assertIn("def async_step_hub_settings", source)
         self.assertIn("return f\"{root}::hub::{hub_id.strip().lower()}\"", source)
+
+    def test_current_hub_device_identifiers_are_protected(self) -> None:
+        for identifier in (
+            "greenhouse",
+            "greenhouse_planter_1",
+            "greenhouse_pump_1",
+            "greenhouse_sensor_8_temperature",
+        ):
+            self.assertTrue(helpers.watering_device_identifier_belongs_to_hub(identifier, "greenhouse"))
+            self.assertFalse(helpers.watering_device_identifier_is_stale(identifier, "greenhouse"))
+
+    def test_other_hub_device_identifiers_are_stale(self) -> None:
+        for identifier in (
+            "garage",
+            "garage_planter_1",
+            "garage_pump_1",
+            "garage_sensor_8_temperature",
+        ):
+            self.assertFalse(helpers.watering_device_identifier_belongs_to_hub(identifier, "greenhouse"))
+            self.assertTrue(helpers.watering_device_identifier_is_stale(identifier, "greenhouse"))
+
+    def test_remove_config_entry_device_hook_is_exposed(self) -> None:
+        source = (ROOT / "custom_components/watering_io/__init__.py").read_text(encoding="utf-8")
+
+        self.assertIn("async def async_remove_config_entry_device", source)
+        self.assertIn("watering_device_identifier_is_stale", source)
 
     def test_coordinator_accepts_schema_v2_and_v3(self) -> None:
         source = (ROOT / "custom_components/watering_io/coordinator.py").read_text(encoding="utf-8")

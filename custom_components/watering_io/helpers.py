@@ -17,6 +17,32 @@ def configured_topic_root(topic_prefix: str) -> tuple[str, str | None]:
     return root.rstrip("/"), hub_id or None
 
 
+def watering_device_identifier_belongs_to_hub(identifier: str, hub_id: str) -> bool:
+    """Return true when a Watering.IO device identifier belongs to a hub."""
+    identifier = identifier.strip()
+    hub_id = hub_id.strip()
+    if not identifier or not hub_id:
+        return False
+    if identifier == hub_id:
+        return True
+    return identifier.startswith(
+        (
+            f"{hub_id}_planter_",
+            f"{hub_id}_pump_",
+            f"{hub_id}_sensor_",
+        )
+    )
+
+
+def watering_device_identifier_is_stale(identifier: str, current_hub_id: str) -> bool:
+    """Return true when a Watering.IO device identifier does not belong to the current hub."""
+    identifier = identifier.strip()
+    current_hub_id = current_hub_id.strip()
+    if not identifier or not current_hub_id:
+        return False
+    return not watering_device_identifier_belongs_to_hub(identifier, current_hub_id)
+
+
 def extract_planter_id(item: Any) -> str | None:
     """Extract a planter id from mixed schema formats."""
     if isinstance(item, dict):

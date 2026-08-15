@@ -55,10 +55,10 @@ Entities are created for:
 - Schedule status sensors: phase, local date, schedule start times, and fertilizer run details
 - Schedule binary sensors: schedule enabled, automatic moisture allowed, and time synced
 - Pump binary sensors from the nested pump status payload
-- Pump reservoir level sensors, refill status, regulator error state, and editable reservoir config number entities for fixed Pump 1 and Pump 2
+- Pump reservoir level sensors, refill relay total runtime, refill status, regulator error state, and editable reservoir config number entities for fixed Pump 1 and Pump 2
 - Per-planter sensors and binary sensors
 - Per-planter dosing sensors for total dosing time and calculated total water
-- Per-sensor moisture, temperature, online state, and scan stability diagnostics
+- Per-sensor moisture, temperature, level relay total runtime, online state, and scan stability diagnostics
 - Sensor rescan button publishing `{}` to `<root>/cmd/sensors/rescan`
 - Per-planter target moisture, fertilizer steps, and max daily dosing number entities that publish updates through the planter config command
 
@@ -109,7 +109,7 @@ Editable number controls are available for:
 - `set_level_percent`: fill level where automatic refilling stops
 - `max_relay_on_time_s`: level sensor relay safety timeout in seconds
 
-The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, distance, refill relay state, and regulator error state.
+The integration publishes a full pump reservoir config update while preserving cached values for fields that were not edited. Live monitoring comes from `<root>/status/pumps` and includes reservoir sensor online state, fill level, distance, refill relay state, relay-on total seconds, and regulator error state.
 
 ## Dosing Measurements
 

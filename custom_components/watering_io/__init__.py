@@ -14,10 +14,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import WateringIoCoordinator
-from .helpers import extract_planter_id, planter_config_set_payload, planter_config_update_source
+from .helpers import (
+    extract_planter_id,
+    planter_config_set_payload,
+    planter_config_update_source,
+    watering_device_identifier_belongs_to_hub,
+    watering_device_identifier_is_stale,
+)
 
 FRONTEND_REGISTERED = "frontend_registered"
 SERVICES_REGISTERED = "services_registered"
@@ -53,6 +60,32 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_shutdown()
         _async_unregister_services_if_unused(hass)
     return unload_ok
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Allow stale Watering.IO devices to be removed from Home Assistant."""
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if not isinstance(coordinator, WateringIoCoordinator) or not coordinator.hub_id_available:
+        return False
+
+    watering_identifiers = [
+        str(identifier)
+        for domain, identifier in device_entry.identifiers
+        if domain == DOMAIN
+    ]
+    if any(
+        watering_device_identifier_belongs_to_hub(identifier, coordinator.hub_id)
+        for identifier in watering_identifiers
+    ):
+        return False
+    return any(
+        watering_device_identifier_is_stale(identifier, coordinator.hub_id)
+        for identifier in watering_identifiers
+    )
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
