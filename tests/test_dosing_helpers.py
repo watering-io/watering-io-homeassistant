@@ -31,6 +31,11 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('"today_missed_scans": ("today_missed_scans", "todayMissedScans")', source)
         self.assertIn('"relay_on_total_seconds"', source)
         self.assertIn('"relay_on_total_seconds": ("relay_on_total_seconds", "relayOnTotalSeconds")', source)
+        self.assertIn('"max_daily_refill_on_time_s"', source)
+        self.assertIn('"refill_on_today_s"', source)
+        self.assertIn('"refill_remaining_today_s"', source)
+        self.assertIn('"relay_counter_overflows"', source)
+        self.assertIn('"relay_counter_resets"', source)
 
     def test_system_input_voltage_and_nested_pump_status_are_exposed(self) -> None:
         sensor_source = (ROOT / "custom_components/watering_io/sensor.py").read_text(encoding="utf-8")
@@ -50,6 +55,8 @@ class DosingHelperTests(unittest.TestCase):
         self.assertIn('UnitOfElectricPotential.VOLT', sensor_source)
         self.assertIn('PumpBinarySensor(coordinator, ("pump1", "on"), "pump_a")', binary_source)
         self.assertIn('PumpBinarySensor(coordinator, ("pump2", "on"), "pump_b")', binary_source)
+        self.assertIn('"refill_daily_limit_reached"', binary_source)
+        self.assertIn('"refill_accounting_time_synced"', binary_source)
         self.assertIn('("sw1_pressed", "SW1 pressed", ("sw1_pressed",))', binary_source)
         self.assertIn("SystemBinarySensor(coordinator, unique_suffix, name, path)", binary_source)
         self.assertIn("nested_value(self.coordinator.state.system_status, self.path)", binary_source)
@@ -429,6 +436,7 @@ class DosingHelperTests(unittest.TestCase):
             "low_level_threshold_percent": 20,
             "set_level_percent": 85,
             "max_relay_on_time_s": 600,
+            "max_daily_refill_on_time_s": 64800,
         }
 
         self.assertEqual(
@@ -439,8 +447,31 @@ class DosingHelperTests(unittest.TestCase):
                 "low_level_threshold_percent": 20,
                 "set_level_percent": 90,
                 "max_relay_on_time_s": 600,
+                "max_daily_refill_on_time_s": 64800,
             },
         )
+
+    def test_pump_config_set_payload_defaults_daily_refill_limit(self) -> None:
+        config = {
+            "pump_id": 1,
+            "level_sensor_modbus_id": 8,
+            "low_level_threshold_percent": 20,
+            "set_level_percent": 85,
+            "max_relay_on_time_s": 600,
+        }
+
+        self.assertEqual(
+            helpers.pump_config_set_payload(config, max_daily_refill_on_time_s=18 * 60 * 60),
+            {
+                "pump_id": 1,
+                "level_sensor_modbus_id": 8,
+                "low_level_threshold_percent": 20,
+                "set_level_percent": 85,
+                "max_relay_on_time_s": 600,
+                "max_daily_refill_on_time_s": 64800,
+            },
+        )
+        self.assertEqual(helpers.pump_config_set_payload(config)["max_daily_refill_on_time_s"], 0)
 
     def test_pump_config_update_source_uses_status_when_config_missing(self) -> None:
         status = {
@@ -449,9 +480,20 @@ class DosingHelperTests(unittest.TestCase):
             "low_level_threshold_percent": 0,
             "set_level_percent": 0,
             "max_relay_on_time_s": 0,
+            "max_daily_refill_on_time_s": 0,
         }
 
         self.assertIs(helpers.pump_config_update_source(None, status), status)
+
+    def test_pump_daily_refill_number_entity_is_exposed(self) -> None:
+        source = (ROOT / "custom_components/watering_io/number.py").read_text(encoding="utf-8")
+        coordinator_source = (ROOT / "custom_components/watering_io/coordinator.py").read_text(encoding="utf-8")
+
+        self.assertIn("PumpMaxDailyRefillOnTimeNumber(coordinator, pump_id)", source)
+        self.assertIn('config_key = "max_daily_refill_on_time_s"', source)
+        self.assertIn("_attr_native_max_value = 86400", source)
+        self.assertIn("max_daily_refill_on_time_s: int | None = None", coordinator_source)
+        self.assertIn('payload["max_daily_refill_on_time_s"] = max_daily_refill_on_time_s', coordinator_source)
 
 
 if __name__ == "__main__":

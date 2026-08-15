@@ -285,16 +285,20 @@ class WateringIoCoordinator:
         low_level_threshold_percent: int,
         set_level_percent: int,
         max_relay_on_time_s: int,
+        max_daily_refill_on_time_s: int | None = None,
     ) -> None:
+        payload = {
+            "pump_id": pump_id,
+            "level_sensor_modbus_id": level_sensor_modbus_id,
+            "low_level_threshold_percent": low_level_threshold_percent,
+            "set_level_percent": set_level_percent,
+            "max_relay_on_time_s": max_relay_on_time_s,
+        }
+        if max_daily_refill_on_time_s is not None:
+            payload["max_daily_refill_on_time_s"] = max_daily_refill_on_time_s
         await self._publish_json(
             f"{self._hub_root_required()}/cmd/config/pumps/set",
-            {
-                "pump_id": pump_id,
-                "level_sensor_modbus_id": level_sensor_modbus_id,
-                "low_level_threshold_percent": low_level_threshold_percent,
-                "set_level_percent": set_level_percent,
-                "max_relay_on_time_s": max_relay_on_time_s,
-            },
+            payload,
         )
 
     async def async_publish_pump_config_get(self) -> None:

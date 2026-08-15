@@ -40,6 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                         PumpLowLevelThresholdNumber(coordinator, pump_id),
                         PumpSetLevelNumber(coordinator, pump_id),
                         PumpMaxRelayOnTimeNumber(coordinator, pump_id),
+                        PumpMaxDailyRefillOnTimeNumber(coordinator, pump_id),
                     ]
                 )
             pump_numbers_added = True
@@ -188,6 +189,20 @@ class PumpMaxRelayOnTimeNumber(PumpReservoirNumber):
         super().__init__(coordinator, pump_id)
         self._attr_name = "Max refill on time"
         self._attr_unique_id = f"{self.pump_unique_id}_max_relay_on_time_s_number"
+
+
+class PumpMaxDailyRefillOnTimeNumber(PumpReservoirNumber):
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 86400
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    config_key = "max_daily_refill_on_time_s"
+
+    def __init__(self, coordinator: WateringIoCoordinator, pump_id: str) -> None:
+        super().__init__(coordinator, pump_id)
+        self._attr_name = "Max daily refill on time"
+        self._attr_unique_id = f"{self.pump_unique_id}_max_daily_refill_on_time_s_number"
 
 
 class PlanterTargetMoistureNumber(WateringPlanterEntity, NumberEntity):

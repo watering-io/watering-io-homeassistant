@@ -20,7 +20,13 @@ SYSTEM_BINARY_FIELDS = [
     ("sw1_pressed", "SW1 pressed", ("sw1_pressed",)),
 ]
 PLANTER_BINARY_FIELDS = ["watering", "online", "daily_dosing_cap_reached"]
-PUMP_RESERVOIR_BINARY_FIELDS = ["sensor_online", "refill_relay_on", "regulator_error"]
+PUMP_RESERVOIR_BINARY_FIELDS = [
+    "sensor_online",
+    "refill_relay_on",
+    "regulator_error",
+    "refill_daily_limit_reached",
+    "refill_accounting_time_synced",
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
